@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="MySeekBarStyle" parent="Widget.AppCompat.SeekBar.Discrete">
+        <item name="android:progressTint">@color/appColor</item>
+        <item name="android:thumbTint">@color/appColor</item>
+    </style>
+
+    <style name="taskSeekBarStyle" parent="Widget.AppCompat.SeekBar.Discrete">
+        <item name="android:progressTint">#FFFFFF</item>
+        <item name="android:thumbTint">#FFFFFF</item>
+    </style>
+
+    <style name="CardView." parent="Theme.AppCompat.Light">
+        <item name="colorAccent">@color/appColor</item>
+        <item name="colorPrimary">@color/appColor</item>
+        <item name="colorSecondary">@color/appColor</item>
+    </style>
+
+    <style name="CheckBox." parent="Theme.AppCompat.Light">
+        <item name="colorAccent">@color/appColor</item>
+        <item name="colorPrimary">@color/appColor</item>
+        <item name="colorSecondary">@color/appColor</item>
+    </style>
+
+    <style name="NumberPickerStyle" parent="android:Widget.Material.Light.NumberPicker">
+        <item name="android:textSize">100sp</item>
+    </style>
+
+</resources>

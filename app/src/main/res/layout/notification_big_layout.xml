@@ -1,0 +1,109 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:gravity="center">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        >
+
+        <TextView
+            android:id="@+id/notification_title"
+            android:layout_width="wrap_content"
+            android:layout_weight="5"
+            android:layout_height="wrap_content"
+            android:gravity="start"
+            android:textColor="#FFFFFF"
+            android:textSize="20sp"
+            android:textStyle="bold"/>
+
+        <TextView
+            android:id="@+id/notification_countdown"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:layout_weight="1"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        >
+
+        <ImageButton
+            android:id="@+id/notification_duration_back"
+            android:layout_width="100dp"
+            android:layout_height="50dp"
+            android:scaleType="fitCenter"
+            android:gravity="center"
+            android:src="@drawable/ic_replay"
+            android:background="@android:color/transparent"/>
+
+        <ImageButton
+            android:id="@+id/notification_play"
+            android:layout_width="100dp"
+            android:layout_height="100dp"
+            android:scaleType="fitCenter"
+            android:gravity="center"
+            android:src="@drawable/ic_play"
+            android:background="@android:color/transparent"/>
+
+        <ImageButton
+            android:id="@+id/notification_duration_forward"
+            android:layout_width="100dp"
+            android:layout_height="50dp"
+            android:scaleType="fitCenter"
+            android:gravity="center"
+            android:src="@drawable/ic_forward"
+            android:background="@android:color/transparent"/>
+
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/task_counter_view"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center"
+        android:visibility="visible">
+
+        <ImageButton
+            android:id="@+id/previous_task"
+            android:layout_width="75dp"
+            android:layout_height="30dp"
+            android:scaleType="fitXY"
+            android:gravity="center"
+            android:src="@drawable/ic_arrow"
+            android:background="@android:color/transparent"
+            android:scaleX="-1"/>
+
+        <TextView
+            android:id="@+id/task_counter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center"
+            android:paddingHorizontal="20dp"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp" />
+
+        <ImageButton
+            android:id="@+id/next_task"
+            android:layout_width="75dp"
+            android:layout_height="30dp"
+            android:scaleType="fitXY"
+            android:gravity="center"
+            android:src="@drawable/ic_arrow"
+            android:background="@android:color/transparent" />
+
+    </LinearLayout>
+
+</LinearLayout>

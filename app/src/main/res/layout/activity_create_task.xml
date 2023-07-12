@@ -1,0 +1,237 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/border">
+
+    <LinearLayout
+        android:id="@+id/horizontalView"
+        android:layout_width="match_parent"
+        android:layout_height="110dp"
+        android:background="@drawable/main_border">
+
+        <EditText
+            android:id="@+id/taskTitleEditText"
+            android:layout_height="match_parent"
+            android:layout_width="match_parent"
+            android:layout_marginHorizontal="60dp"
+            android:layout_marginVertical="10dp"
+            android:hint="Describe me..."
+            android:inputType="text"
+            android:textSize="24sp"
+            android:background="@null"
+            android:textStyle="bold"
+            android:textColor="#716f6d"
+            tools:ignore="Autofill" />
+
+    </LinearLayout>
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_above="@+id/buttonLayout"
+        android:layout_below="@id/horizontalView">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:gravity="center_horizontal">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:textStyle="bold"
+                android:textColor="#716f6d"
+                android:text="Duration" />
+
+            <LinearLayout
+                android:layout_width="wrap_content"
+                android:layout_height="200dp"
+                android:gravity="center"
+                android:orientation="horizontal">
+
+                <NumberPicker
+                    android:id="@+id/taskHL"
+                    android:layout_width="100dp"
+                    android:layout_height="wrap_content"
+                    android:textColor="#716f6d"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textStyle="bold"
+                    android:textColor="#716f6d"
+                    android:text=":"
+                    android:layout_margin="16dp"/>
+
+                <NumberPicker
+                    android:id="@+id/taskML"
+                    android:layout_width="50dp"
+                    android:layout_height="wrap_content"
+                    android:textColor="#716f6d"
+                    android:textStyle="bold" />
+
+                <NumberPicker
+                    android:id="@+id/taskMR"
+                    android:layout_width="50dp"
+                    android:textColor="#716f6d"
+                    android:textStyle="bold"
+                    android:layout_height="wrap_content" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="35dp"
+                android:layout_marginHorizontal="50dp"
+                android:gravity="center"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="10dp"
+                    android:textStyle="bold"
+                    android:textColor="#716f6d"
+                    android:text="Priority" />
+
+                <SeekBar
+                    android:id="@+id/priorityBar"
+                    android:layout_height="10dp"
+                    style="@style/MySeekBarStyle"
+                    android:layout_width="match_parent"
+                    android:max="10"
+                    android:min="0"
+                    android:progress="5"
+                    android:progressDrawable="@drawable/seekbar_progress"
+                    />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_marginHorizontal="80dp"
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:gravity="center"
+                android:layout_height="match_parent">
+
+                <CheckBox
+                    android:id="@+id/checkBoxRepeat"
+                    android:layout_width="wrap_content"
+                    android:layout_height="50dp"
+                    android:text="Repeat"
+                    android:textColor="#716f6d"
+                    android:theme="@style/CheckBox."
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/textViewRepeat"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:layout_weight="1"
+                    android:textColor="#716f6d"
+                    android:text="" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_marginHorizontal="80dp"
+                android:orientation="horizontal"
+                android:layout_width="match_parent"
+                android:gravity="center"
+                android:layout_height="match_parent">
+
+                <CheckBox
+                    android:id="@+id/checkBoxHasFixedTime"
+                    android:layout_width="wrap_content"
+                    android:layout_height="50dp"
+                    android:text="Has fixed time"
+                    android:textColor="#716f6d"
+                    android:theme="@style/CheckBox."
+                    android:textStyle="bold"/>
+
+                <TextView
+                    android:id="@+id/textViewHasFixedTime"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:layout_weight="1"
+                    android:textColor="#716f6d"
+                    android:text="" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/color_picker_layout"
+                android:orientation="vertical"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:layout_marginBottom="35dp"
+                android:layout_marginHorizontal="50dp"
+                android:gravity="center">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_margin="10dp"
+                    android:textStyle="bold"
+                    android:textColor="#716f6d"
+                    android:text="Color" />
+
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </ScrollView>
+
+    <LinearLayout
+        android:id="@+id/buttonLayout"
+        android:layout_width="match_parent"
+        android:layout_height="80dp"
+        android:background="@drawable/main_border"
+        android:layout_alignParentBottom="true">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:layout_margin="10dp"
+            tools:ignore="UselessParent">
+
+            <LinearLayout
+                android:id="@+id/background"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:layout_gravity="bottom|end"
+                android:layout_marginStart="5dp"
+                android:layout_marginTop="4dp"
+                android:orientation="horizontal"
+                android:background="@drawable/create_button_shadow">
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/createTaskButton"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:layout_marginEnd="5dp"
+                android:layout_marginBottom="4dp"
+                android:background="@drawable/create_button"
+                android:textStyle="bold"
+                android:text="Create New Task"
+                android:textColor="#FFFFFF"/>
+
+        </FrameLayout>
+
+    </LinearLayout>
+
+</RelativeLayout>

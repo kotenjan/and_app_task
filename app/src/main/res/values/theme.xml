@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="Theme.MaterialComponents.Light">
+
+        <item name="colorPrimary">@color/appColor</item>
+        <item name="colorPrimaryVariant">@color/appColor</item>
+        <item name="colorOnPrimary">@color/appColor</item>
+        <item name="colorSecondary">@color/appColor</item>
+        <item name="colorSecondaryVariant">@color/appColor</item>
+        <item name="colorOnSecondary">@color/appColor</item>
+
+    </style>
+</resources>

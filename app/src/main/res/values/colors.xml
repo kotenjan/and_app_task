@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#716f6d</color>
+    <color name="red">#8F3C36</color>
+    <color name="appColor">#3094F0</color>
+    <color name="appColorShadow">#174773</color>
+    <color name="textDark">#716f6d</color>
+    <color name="defaultButton">#5C5CE6</color>
+    <color name="defaultButtonShadow">#2E2E73</color>
+    <color name="defaultTaskColor">#5C5CE6</color>
+    <color name="defaultDarkTaskColor">#2E2E73</color>
+</resources>
