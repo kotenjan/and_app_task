@@ -27,8 +27,8 @@ interface TaskDao {
     @Query("UPDATE tasks SET isRunning = :isRunning WHERE id = :id AND createdTime = :createdTime AND isTemplate = :isTemplate")
     suspend fun updateRunningState(id: Long, createdTime: LocalDateTime, isTemplate: Boolean, isRunning: Boolean)
 
-    @Query("UPDATE tasks SET timeLeft = timeLeft - 1 WHERE isRunning = 1 AND timeLeft > 0 AND isTemplate = 0")
-    suspend fun decrementTimeLeftForRunningTasks()
+    //@Query("UPDATE tasks SET timeLeft = timeLeft - 1 WHERE isRunning = 1 AND timeLeft > 0 AND isTemplate = 0")
+    //suspend fun decrementTimeLeftForRunningTasks()
 
     @Query("UPDATE tasks SET timeLeft = MAX(0, timeLeft - :value) WHERE id = :id AND createdTime = :createdTime AND isTemplate = :isTemplate")
     suspend fun decrementTimeLeft(id: Long, createdTime: LocalDateTime, isTemplate: Boolean, value: Int)
@@ -54,9 +54,9 @@ interface TaskDao {
     @Query("DELETE FROM tasks")
     suspend fun prune()
 
-    @Transaction
-    suspend fun updateTaskTimes() {
-        finishTasksWithNoTimeLeft()
-        decrementTimeLeftForRunningTasks()
-    }
+    //@Transaction
+    //suspend fun updateTaskTimes() {
+    //    finishTasksWithNoTimeLeft()
+    //    decrementTimeLeftForRunningTasks()
+    //}
 }

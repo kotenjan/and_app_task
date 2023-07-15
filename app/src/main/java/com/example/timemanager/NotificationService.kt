@@ -8,7 +8,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.app.PendingIntent
 import android.graphics.Color
-import android.os.Build.VERSION.SDK_INT
 import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
@@ -17,10 +16,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.time.Duration
 import kotlin.coroutines.CoroutineContext
 
 class NotificationService : Service(), CoroutineScope {
@@ -31,17 +28,12 @@ class NotificationService : Service(), CoroutineScope {
 
     private val channelId = "NotificationChannel"
     private val notificationId = 1
-
+    private val notificationViewModel: NotificationViewModel by lazy { NotificationViewModel(application) }
     private lateinit var builder: NotificationCompat.Builder
     private lateinit var manager: NotificationManagerCompat
-
-    private val taskDatabase: TaskDatabase by lazy { TaskDatabase.getDatabase(application) }
-    private val taskDao: TaskDao by lazy { taskDatabase.taskDao() }
-
     private val binder = Binder()
-
+    private val delay = Delay()
     private var isUpdateRunning = false
-    private var isWatchRunning = false
 
     private fun startUpdate() {
         if (!isUpdateRunning) {
@@ -49,35 +41,15 @@ class NotificationService : Service(), CoroutineScope {
                 isUpdateRunning = true
                 try {
                     while (isActive) {
-                        taskDao.updateTaskTimes()
-                        delay(1000L)
+                        //notificationViewModel.updateTaskTimes()
+                        notificationViewModel.updateTasks()
+                        updateNotification(notificationViewModel.getTask(), notificationViewModel.position, notificationViewModel.count)
+                        delay.delayToNextSecond(100)
                     }
                 } finally {
                     isUpdateRunning = false
                 }
             }
-        }
-    }
-
-    private fun startWatch() {
-        if (!isWatchRunning) {
-            launch {
-                isWatchRunning = true
-                try {
-                    while (isActive) {
-                        delay(6400L)
-                        watch()
-                    }
-                } finally {
-                    isWatchRunning = false
-                }
-            }
-        }
-    }
-
-    private suspend fun watch() {
-        if (taskDao.countRunningTasks() == 0) {
-            kill()
         }
     }
 
@@ -96,8 +68,34 @@ class NotificationService : Service(), CoroutineScope {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d("NotificationService", "Service start command received")
 
-        startUpdate()
-        startWatch()
+        intent?.let {
+            when(it.action) {
+                "ACTION_NOTIFICATION_FORWARD" -> {
+                    notificationViewModel.forward()
+                }
+                "ACTION_NOTIFICATION_BACK" -> {
+                    notificationViewModel.back()
+                }
+                "ACTION_PLAY" -> {
+                    notificationViewModel.updateRunningState()
+                }
+                "ACTION_PREVIOUS" -> {
+                    // Handle previous task action
+                }
+                "ACTION_NEXT" -> {
+                    // Handle next task action
+                }
+                "ACTION_SET_TIME" -> {
+
+                }
+                "ACTION_START" -> {
+                    startUpdate()
+                }
+                else -> {
+                    // Handle other actions
+                }
+            }
+        }
 
         return START_STICKY
     }
@@ -164,21 +162,22 @@ class NotificationService : Service(), CoroutineScope {
     }
 
     @SuppressLint("MissingPermission")
-    private fun updateNotification(update: Triple<Task, Int, Int>) {
+    private fun updateNotification(task: Task?, position: Int, count: Int) {
 
-        val intent = Intent("task_duration_update")
-        intent.putExtra("updated_duration", update.first.timeLeft.toString())
-        intent.putExtra("task_id", update.first.id.toString())
-        sendBroadcast(intent)
-        println("SENT ${update.first.timeLeft}")
+        task?.let {
+            val intent = Intent("task_duration_update")
+            intent.putExtra("updated_duration", it.timeLeft.toString())
+            intent.putExtra("task_id", it.id.toString())
+            sendBroadcast(intent)
+        }
 
         val notificationLayout = RemoteViews(packageName, R.layout.notification_layout)
         val notificationBigLayout = RemoteViews(packageName, R.layout.notification_big_layout)
 
         setButtonFunctions(notificationBigLayout)
 
-        if (update.first.timeLeft > 0) {
-            val timeText = timeLeft(update.first.timeLeft)
+        if ((task?.timeLeft ?: 0) > 0) {
+            val timeText = timeLeft(task!!.timeLeft)
             notificationLayout.setTextViewText(R.id.notification_countdown, timeText)
             notificationBigLayout.setTextViewText(R.id.notification_countdown, timeText)
         } else {
@@ -186,20 +185,20 @@ class NotificationService : Service(), CoroutineScope {
             notificationBigLayout.setTextViewText(R.id.notification_countdown, "Finished!")
         }
 
-        if (update.first.isRunning){
+        if (task?.isRunning == true){
             notificationBigLayout.setImageViewResource(R.id.notification_play, R.drawable.ic_pause)
         } else {
             notificationBigLayout.setImageViewResource(R.id.notification_play, R.drawable.ic_play)
         }
 
-        if (update.third > 1){
+        if (count > 1){
             notificationBigLayout.setViewVisibility(R.id.task_counter_view, View.VISIBLE)
-            notificationBigLayout.setTextViewText(R.id.task_counter, "${update.second + 1}/${update.third}")
+            notificationBigLayout.setTextViewText(R.id.task_counter, "${position + 1}/${count}")
         } else {
             notificationBigLayout.setViewVisibility(R.id.task_counter_view, View.GONE)
         }
 
-        builder.color = Color.parseColor(update.first.color)
+        task?.let { builder.color = Color.parseColor(task.color) }
         builder.setCustomContentView(notificationLayout)
         builder.setCustomBigContentView(notificationBigLayout)
 

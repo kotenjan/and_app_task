@@ -12,9 +12,14 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -25,6 +30,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var dayLayout: LinearLayout
     private lateinit var displayDay: LocalDate
     private lateinit var taskViewModel: TaskViewModel
+    private lateinit var taskAdapter: TaskAdapter
     private val tag = "MainActivity"
 
     private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
@@ -63,13 +69,13 @@ class MainActivity : ComponentActivity() {
             createDayView(LocalDate.now().plusDays(i.toLong()))
         }
 
-        addButton.setOnClickListener {
-            val createTaskIntent = Intent(this, CreateTaskActivity::class.java)
-            resultLauncher.launch(createTaskIntent)
-        }
+        taskViewModel.tasksLiveData.observe(this, Observer { refreshedTasks ->
+            taskAdapter.refresh(refreshedTasks)
+        })
 
-        taskViewModel.tasksLiveData.observe(this) { tasks ->
-            (taskRecyclerView.adapter as? TaskAdapter)?.update(tasks)
+        addButton.setOnClickListener {
+            val createTaskIntent = Intent(this, CreateTaskActivity::class.java).apply { action = "ACTION_START" }
+            resultLauncher.launch(createTaskIntent)
         }
 
         displayTasks()
@@ -79,12 +85,13 @@ class MainActivity : ComponentActivity() {
         if (result.resultCode == Activity.RESULT_OK) {
             val data: Intent? = result.data
             val task = data?.parcelable<Task>("task")
-            task?.let { taskViewModel.insertTask(task, true) }
+            task?.let { taskViewModel.addTask(it) }
         }
     }
 
     private fun displayTasks() {
-        taskRecyclerView.adapter = TaskAdapter(this, taskViewModel, displayDay)
+        taskAdapter = TaskAdapter(this, taskViewModel, displayDay)
+        taskRecyclerView.adapter = taskAdapter
     }
 }
 

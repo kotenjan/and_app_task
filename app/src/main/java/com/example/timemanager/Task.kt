@@ -30,10 +30,6 @@ data class Task(
     var status: TaskStatus,
 ): Parcelable {
 
-    fun task(newIsTemplate: Boolean? = null, newIsRunning: Boolean? = null, newCreatedTime: LocalDateTime? = null, newStatus: TaskStatus? = null): Task {
-        return Task(id, text, newIsTemplate?:isTemplate, duration, priority, intervalDays, fixedTime, newCreatedTime?:createdTime, color, startTime, timeLeft, newIsRunning?:isRunning, isDetailVisible, newStatus?:status)
-    }
-
     fun isOnToday(today: LocalDate): Boolean{
 
         if (createdTime.isAfter(today.plusDays(1).atStartOfDay())){
