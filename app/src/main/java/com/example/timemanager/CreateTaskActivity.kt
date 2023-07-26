@@ -320,7 +320,7 @@ class CreateTaskActivity : ComponentActivity() {
         val selectedMinuteTens: Int = fixedPickerML.value * 10
         val selectedMinuteOnes: Int = fixedPickerMR.value
         val selectedMinute: Int = selectedMinuteTens + selectedMinuteOnes
-        val selectedTime: LocalTime = LocalTime.of(selectedHour, selectedMinute)
+        val selectedTime: LocalTime = LocalTime.of(selectedHour, selectedMinute, 0)
 
         return LocalDateTime.of(selectedDate, selectedTime)
     }

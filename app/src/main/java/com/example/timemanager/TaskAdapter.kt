@@ -15,7 +15,6 @@ import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.Observer
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
 import kotlinx.coroutines.CoroutineScope
@@ -23,12 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import java.time.Duration
 import java.time.LocalDate
-import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 class TaskAdapter(
@@ -58,17 +52,13 @@ class TaskAdapter(
     private fun start() {
         launch {
 
-            taskViewModel.loadTasks()
+            taskViewModel.loadTasks(displayDay)
 
             while (isActive) {
-                taskViewModel.updateRunningTasks()
+                taskViewModel.updateRunningTasks(displayDay)
                 delay.delayToNextSecond(offsetMillis = 0)
             }
         }
-    }
-
-    private fun startServices() {
-        context.startService(Intent(context, NotificationService::class.java).apply { action = "ACTION_START" })
     }
 
     private inner class TaskDiffCallback(
@@ -188,20 +178,19 @@ class TaskAdapter(
             detail.visibility = if (task.isDetailVisible) View.VISIBLE else View.GONE
             taskProgress.max = task.duration.toInt()
             taskProgress.progress = task.duration.minus(task.timeLeft).toInt()
-            updateTask(task)
 
             taskLayout.setOnClickListener {
                 task.isDetailVisible = !task.isDetailVisible
                 setDetail(task)
-                taskViewModel.loadTask(task)
+                taskViewModel.setTaskDetail(task, displayDay, task.isDetailVisible)
             }
 
             backButton.setOnClickListener {
-                taskViewModel.modifyTime(task, 30)
+                taskViewModel.modifyTime(task, 30, displayDay)
             }
 
             forwardButton.setOnClickListener {
-                taskViewModel.modifyTime(task, -30)
+                taskViewModel.modifyTime(task, -30, displayDay)
             }
 
             playButton.setOnClickListener {
@@ -213,7 +202,7 @@ class TaskAdapter(
             }
 
             removeButton.setOnClickListener{
-
+                taskViewModel.deleteTask(task, displayDay, false)
             }
 
             taskProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -222,7 +211,7 @@ class TaskAdapter(
 
                 override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                     if (fromUser) {
-                        taskViewModel.setTime(task, task.duration - progress)
+                        taskViewModel.setTime(task, task.duration - progress, displayDay)
                     }
                 }
 
@@ -246,9 +235,8 @@ class TaskAdapter(
 
                 task.isRunning = true
 
-                taskViewModel.setRunningState(task, 1)
+                taskViewModel.setRunningState(task, 1, displayDay)
 
-                startServices()
                 if (changeButton) {
                     playButton.setImageResource(R.drawable.ic_pause)
                 }
@@ -261,7 +249,7 @@ class TaskAdapter(
 
             task.isRunning = false
 
-            taskViewModel.setRunningState(task, 0)
+            taskViewModel.setRunningState(task, 0, displayDay)
 
             if (changeButton) {
                 playButton.setImageResource(R.drawable.ic_play)

@@ -44,12 +44,21 @@ data class Task(
         return (ChronoUnit.DAYS.between(createdTime.toLocalDate(), today) % intervalDays) == 0L
     }
 
+    private fun compareTask(other: Task): Boolean {
+        return (other.id == id) && (other.createdTime == createdTime) && (other.isTemplate == isTemplate)
+    }
+
+    private fun compareKey(other: TaskKey): Boolean {
+        return (other.id == id) && (other.createdTime == createdTime) && (other.isTemplate == isTemplate)
+    }
+
     override fun equals(other: Any?): Boolean {
-        if (other !is Task) return false
-        return (other.id == id) && (other.createdTime == createdTime)
+        if (other is TaskKey) return compareKey(other)
+        if (other is Task) return compareTask(other)
+        return false
     }
 
     override fun hashCode(): Int {
-        return 42 * id.hashCode() + 42 * createdTime.hashCode()
+        return 42 * id.hashCode() + 42 * createdTime.hashCode() + 42 * isTemplate.hashCode()
     }
 }

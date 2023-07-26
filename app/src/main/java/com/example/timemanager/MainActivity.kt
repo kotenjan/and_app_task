@@ -1,7 +1,10 @@
 package com.example.timemanager
 
 import android.app.Activity
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
@@ -31,11 +34,30 @@ class MainActivity : ComponentActivity() {
     private lateinit var displayDay: LocalDate
     private lateinit var taskViewModel: TaskViewModel
     private lateinit var taskAdapter: TaskAdapter
-    private val tag = "MainActivity"
 
     private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
         else -> @Suppress("DEPRECATION") extras?.getParcelable(key) as? T
+    }
+
+    private val notificationReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            intent?.let {
+                when (val actionName = it.getStringExtra(Variables.ACTION_NAME)) {
+                    Variables.ACTION_START -> {
+                        intent.parcelable<TaskKey>(Variables.KEY)!!.let {key ->
+                            
+                        }
+                    }
+                    Variables.ACTION_SET_TIME -> {
+                        intent.parcelable<TaskKey>(Variables.KEY)!!.let {key ->
+                            intent.getLongExtra(Variables.VALUE, 0L)
+                        }
+                    }
+                    else -> throw IllegalArgumentException("Unsupported action: $actionName")
+                }
+            }
+        }
     }
 
     private fun createDayView(day: LocalDate){
@@ -56,11 +78,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        registerReceiver(notificationReceiver, IntentFilter(Variables.MAIN_ACTIVITY_INTENT))
         setContentView(R.layout.activity_main)
         displayDay = LocalDate.now()
         addButton = findViewById(R.id.addButton)
         taskViewModel = ViewModelProvider(this)[TaskViewModel::class.java]
-        taskViewModel.deleteAll()
         taskRecyclerView = findViewById(R.id.task_recycler_view)
         taskRecyclerView.layoutManager = LinearLayoutManager(this)
         dayLayout = findViewById(R.id.dayLayout)
@@ -69,23 +91,28 @@ class MainActivity : ComponentActivity() {
             createDayView(LocalDate.now().plusDays(i.toLong()))
         }
 
-        taskViewModel.tasksLiveData.observe(this, Observer { refreshedTasks ->
+        taskViewModel.tasksLiveData.observe(this) { refreshedTasks ->
             taskAdapter.refresh(refreshedTasks)
-        })
+        }
 
         addButton.setOnClickListener {
-            val createTaskIntent = Intent(this, CreateTaskActivity::class.java).apply { action = "ACTION_START" }
+            val createTaskIntent = Intent(this, CreateTaskActivity::class.java).apply { action = Variables.ACTION_START }
             resultLauncher.launch(createTaskIntent)
         }
 
         displayTasks()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        unregisterReceiver(notificationReceiver)
+    }
+
     private val resultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data: Intent? = result.data
             val task = data?.parcelable<Task>("task")
-            task?.let { taskViewModel.addTask(it) }
+            task?.let { taskViewModel.addTask(it, displayDay) }
         }
     }
 

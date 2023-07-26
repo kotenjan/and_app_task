@@ -3,10 +3,9 @@ package com.example.timemanager
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import android.app.Application
-import android.util.Log
+import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
-import androidx.recyclerview.widget.DiffUtil
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -15,12 +14,12 @@ import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 
-class TaskViewModel(application: Application) : AndroidViewModel(application) {
+class TaskViewModel(private val application: Application) : AndroidViewModel(application) {
 
     private val taskDatabase: TaskDatabase by lazy { TaskDatabase.getDatabase(application) }
     private val taskDao: TaskDao by lazy { taskDatabase.taskDao() }
     private val updateMutex = Mutex()
-    private val tasks: MutableList<Task> = mutableListOf()
+    private val tasks: MutableMap<TaskKey, Task> = mutableMapOf()
     val tasksLiveData = MutableLiveData<List<Task>>()
 
     private suspend fun getTasks(): List<Task> {
@@ -29,103 +28,190 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun addTask(task: Task) {
+    private fun sendIntentToNotificationService(actionName: String, task: Task? = null, taskKey: TaskKey? = null, value: Long? = null) {
         viewModelScope.launch(Dispatchers.IO) {
-            update(Variables.ACTION_ADD, task)
-            //taskDao.insert(task)
+            val context = application.applicationContext
+
+            val intent = Intent(context, NotificationService::class.java).apply {
+                action = actionName
+                task?.let {
+                    putExtra(Variables.TASK, it)
+                }
+                taskKey?.let {
+                    putExtra(Variables.KEY, it)
+                }
+                value?.let {
+                    putExtra(Variables.VALUE, it)
+                }
+            }
+            context.startService(intent)
         }
     }
 
-    fun deleteAll() {
+    fun addTask(task: Task, displayDay: LocalDate) {
         viewModelScope.launch(Dispatchers.IO) {
-            taskDao.prune()
+            val action = Variables.ACTION_ADD
+            update(action, task, displayDay = displayDay)
         }
     }
 
-    fun updateRunningTasks() {
-        viewModelScope.launch(Dispatchers.IO) { update(Variables.ACTION_TIME_DECREASE) }
+    fun deleteTask(task: Task, displayDay: LocalDate, deleteAll: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val action = Variables.ACTION_REMOVE
+            val value = (if (deleteAll) 1 else 0).toLong()
+            update(action, task, displayDay = displayDay, value = value)
+        }
     }
 
-    fun loadTask(task: Task) {
-        viewModelScope.launch(Dispatchers.IO) { update(Variables.ACTION_LOAD_TASK, task) }
+    fun updateRunningTasks(displayDay: LocalDate) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val action = Variables.ACTION_TIME_DECREASE
+            update(action, displayDay = displayDay)
+        }
     }
 
-    fun modifyTime(task: Task, value: Long) {
-        viewModelScope.launch(Dispatchers.IO) { update(Variables.ACTION_MODIFY_TIME, task, value) }
+    fun setTaskDetail(task: Task, displayDay: LocalDate, detailVisible: Boolean) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val action = Variables.ACTION_SET_DETAIL
+            val value = (if (detailVisible) 1 else 0).toLong()
+            update(action, task, displayDay = displayDay, value = value)
+        }
     }
 
-    fun setTime(task: Task, value: Long) {
-        viewModelScope.launch(Dispatchers.IO) { update(Variables.ACTION_SET_TIME, task, value) }
+    fun modifyTime(task: Task, value: Long, displayDay: LocalDate) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val action = Variables.ACTION_MODIFY_TIME
+            update(action, task, value, displayDay = displayDay)
+        }
     }
 
-    fun setRunningState(task: Task, value: Long) {
-        viewModelScope.launch(Dispatchers.IO) { update(Variables.ACTION_SET_RUNNING_STATE, task, value) }
+    fun setTime(task: Task, value: Long, displayDay: LocalDate) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val action = Variables.ACTION_SET_TIME
+            update(action, task, value, displayDay = displayDay)
+        }
     }
 
-    suspend fun loadTasks() {
+    fun setRunningState(task: Task, value: Long, displayDay: LocalDate) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val action = Variables.ACTION_SET_RUNNING_STATE
+            update(action, task, value, displayDay = displayDay)
+        }
+    }
+
+    private fun dateAtTime(date: LocalDate, dateTime: LocalDateTime): LocalDateTime {
+        return date.atTime(dateTime.toLocalTime())
+    }
+
+    suspend fun loadTasks(displayDay: LocalDate) {
 
         val databaseTasks: List<Task> = getTasks()
-        val remainingTasks = databaseTasks.filter { !it.isTemplate }.toSet()
+        val today = LocalDate.now()
 
-        getTasks().forEach {
-            if (it.isTemplate && it !in remainingTasks && it.createdTime.toLocalDate() < LocalDate.now() && it.createdTime.toLocalDate() > LocalDate.now().minusDays(8)) {
-                update(Variables.ACTION_ADD, it.copy(isTemplate = false))
+        databaseTasks.forEach { task ->
+            if (task.isTemplate) {
+                val intervalDays = Duration.ofDays(task.intervalDays.toLong())
+                generateSequence(task.createdTime) { it + intervalDays }
+                    .takeWhile { it.toLocalDate() < today }
+                    .forEach { createdTime ->
+                        val date = dateAtTime(createdTime.toLocalDate(), task.createdTime)
+                        val newTask = task.copy(createdTime = date, isTemplate = false)
+                        val key = TaskKey(task.id, date, false)
+                        if (key !in tasks) {
+                            update(Variables.ACTION_ADD, newTask, displayDay = displayDay)
+                        }
+                    }
             }
-            update(Variables.ACTION_ADD, it)
+            update(Variables.ACTION_ADD, task, displayDay = displayDay)
         }
     }
 
-    private suspend fun update(action: String, currentTask: Task? = null, value: Long = 0) {
+    private suspend fun update(action: String, currentTask: Task? = null, value: Long = 0, displayDay: LocalDate) {
         updateMutex.withLock {
-
-            val updatedTasks: MutableMap<TaskKey, Task> = (tasksLiveData.value?: listOf()).map { it.copy() }.associateBy { TaskKey(it.id, it.createdTime, it.isTemplate) }.toMutableMap()
 
             when(action) {
                 Variables.ACTION_TIME_DECREASE -> {
-                    updatedTasks.forEach { (_, value) ->
-                        if (value.isRunning) { value.timeLeft = maxOf(value.timeLeft - 1, 0) }
+                    tasks.forEach { (key, value) ->
+                        if (value.isRunning && value.status == TaskStatus.REMAINING) {
+                            val timeLeft = maxOf(value.timeLeft - 1, 0)
+                            tasks[key] = value.copy(timeLeft = timeLeft)
+                            if (timeLeft <= 0) {
+                                tasks[key]!!.status = TaskStatus.FINISHED
+                                sendIntentToNotificationService(Variables.ACTION_REMOVE, taskKey = key)
+                            }
+                        }
                     }
                 }
                 Variables.ACTION_ADD -> {
                     currentTask!!.let {
-                        updatedTasks[TaskKey(it.id, it.createdTime, it.isTemplate)] = it
+                        val taskKey = TaskKey(it.id, it.createdTime, it.isTemplate)
+                        tasks[taskKey] = it
                     }
                 }
                 Variables.ACTION_REMOVE -> {
                     currentTask!!.let {
-                        updatedTasks.remove(TaskKey(it.id, it.createdTime, isTemplate = false))
-                        updatedTasks.remove(TaskKey(it.id, it.createdTime, isTemplate = true))
+                        val removeAll = value == 1L
+                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
+                        if (!removeAll) {
+                            tasks[taskKey] = it.copy(status = TaskStatus.FINISHED, isTemplate = false)
+                        } else {
+                            tasks.keys.retainAll { key -> key.id != it.id }
+                        }
+                        if (currentTask.isRunning) {
+                            sendIntentToNotificationService(Variables.ACTION_REMOVE, taskKey = taskKey)
+                        }
                     }
                 }
                 Variables.ACTION_SET_TIME -> {
                     currentTask!!.let {
-                        val foundTask = updatedTasks[TaskKey(it.id, it.createdTime, isTemplate = false)]
-                        foundTask?.timeLeft = value
+                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
+                        tasks[taskKey] = it.copy(timeLeft = value, isTemplate = false)
+                        if (currentTask.isRunning) {
+                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, taskKey = taskKey, value = value)
+                        }
                     }
                 }
                 Variables.ACTION_MODIFY_TIME -> {
                     currentTask!!.let {
-                        val foundTask = updatedTasks[TaskKey(it.id, it.createdTime, isTemplate = false)]
-                        foundTask?.let { task -> task.timeLeft = minOf(task.duration, maxOf(value + task.timeLeft, 0)) }
+                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
+                        val timeLeft = minOf(it.duration, maxOf(value + (tasks[taskKey]?.timeLeft ?: it.timeLeft), 0))
+                        tasks[taskKey] = it.copy(timeLeft = timeLeft, isTemplate = false)
+                        if (currentTask.isRunning) {
+                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, taskKey = taskKey, value = timeLeft)
+                        }
                     }
                 }
                 Variables.ACTION_SET_RUNNING_STATE -> {
                     currentTask!!.let {
-                        it.isRunning = value == 1L
-                        updatedTasks[TaskKey(it.id, it.createdTime, it.isTemplate)]!!.isRunning = value == 1L
+                        val isRunning = value == 1L
+                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
+                        tasks[taskKey]?.let {task ->
+                            task.isRunning = isRunning
+                        } ?: run {
+                            tasks[taskKey] = it.copy(isRunning = isRunning)
+                        }
+                        if (isRunning) {
+                            sendIntentToNotificationService(Variables.ACTION_ADD, it, value = tasks[taskKey]!!.timeLeft)
+                        } else {
+                            sendIntentToNotificationService(Variables.ACTION_REMOVE, taskKey = taskKey)
+                        }
                     }
                 }
-                Variables.ACTION_LOAD_TASK -> {
+                Variables.ACTION_SET_DETAIL -> {
                     currentTask!!.let {
-                        if (it.isTemplate) {
-                            updatedTasks[TaskKey(it.id, it.createdTime, false)] = it.copy(isTemplate = false)
+                        val isDetailVisible = value == 1L
+                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
+                        tasks[taskKey]?.let {task ->
+                            task.isDetailVisible = isDetailVisible
+                        } ?: run {
+                            tasks[taskKey] = it.copy(isDetailVisible = isDetailVisible, isTemplate = false)
                         }
                     }
                 }
                 else -> throw IllegalArgumentException("Unsupported action: $action")
             }
 
-            val sortedTasks = getSortedTasksForDay(updatedTasks.values.toSet(), LocalDate.now(), LocalDate.now())
+            val sortedTasks = getSortedTasksForDay(tasks.values.toSet(), LocalDate.now(), displayDay)
 
             withContext(Dispatchers.Main){
                 tasksLiveData.value = sortedTasks
@@ -139,28 +225,17 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
         return tasks.partition { task -> !task.createdTime.toLocalDate().isAfter(today) }
     }
 
-    private fun getTasks(tasks: Set<Task>, today: LocalDate): Triple<List<Task>, List<Task>, List<Task>> {
-        val (templateTasks, nonTemplateTasks) = tasks.partition { it.isTemplate }
-        val (finishedTasks, remainingTasks) = nonTemplateTasks.partition { it.status == TaskStatus.FINISHED }
-        val addedTasks = generateDayTasks(templateTasks, finishedTasks.toSet(), today).subtract(remainingTasks.toSet()).toList()
-        return Triple(remainingTasks + addedTasks, templateTasks, finishedTasks)
-    }
-
-    private fun dateAtTime(date: LocalDate, dateTime: LocalDateTime): LocalDateTime {
-        return date.atTime(dateTime.toLocalTime())
-    }
-
     private fun generateDayTasks(
         repeatingTasks: List<Task>,
-        finishedTasks: Set<Task>,
         today: LocalDate
     ): List<Task> {
-        return repeatingTasks.filter { it.isOnToday(today) && !finishedTasks.contains(it) }
-            .map { it.copy(createdTime = dateAtTime(today, it.createdTime), status = TaskStatus.REMAINING) }
+        return repeatingTasks.filter { it.isOnToday(today) }.map { it.copy(createdTime = dateAtTime(today, it.createdTime), status = TaskStatus.REMAINING, isTemplate = false) }
     }
 
     private fun sort(tasks: List<Task>, today: LocalDate): List<Task> {
-        var startTime = maxOf(LocalDateTime.now(), today.atStartOfDay())
+        val currentTime = LocalDateTime.now()
+
+        var startTime = maxOf(currentTime, today.atStartOfDay())
 
         val pause = Duration.ofMinutes(15)
 
@@ -178,7 +253,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
             var result: Task? = null
 
             if (nextElementVariable == null && nextElementFixed != null){
-                nextElementFixed.startTime = nextElementFixed.createdTime
+                nextElementFixed.startTime = maxOf(nextElementFixed.createdTime, currentTime, startTime)
                 result = nextElementFixed
                 nextElementFixed = getNextElement(fixedIterator)
             }
@@ -188,7 +263,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 nextElementVariable = getNextElement(variableIterator)
             }
             else if (nextElementFixed != null){
-                nextElementFixed.startTime = nextElementFixed.createdTime
+                nextElementFixed.startTime = maxOf(nextElementFixed.createdTime, currentTime, startTime)
                 result = nextElementFixed
                 nextElementFixed = getNextElement(fixedIterator)
             }
@@ -198,7 +273,6 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
                 startTime = maxOf(it.startTime.plusSeconds(it.timeLeft).plus(pause), startTime)
             }
         }
-
         return sortedTasks
     }
 
@@ -221,7 +295,7 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun getNextElement(iterator: Iterator<Task>): Task? {
-        return if (iterator.hasNext()) iterator.next() else null
+        return if (iterator.hasNext()) iterator.next().copy() else null
     }
 
     //----------------------------------------------- Controller function for task sorting -----------------------------------------------//
@@ -230,16 +304,24 @@ class TaskViewModel(application: Application) : AndroidViewModel(application) {
 
         var today = startDay
         var tasksToReturn: List<Task>
-        var (remainingTasks, templateTasks, finishedTasks) = getTasks(tasks, today)
+        val (templateTasks, nonTemplateTasks) = tasks.partition { it.isTemplate }
+        var remainingTasks: List<Task> = nonTemplateTasks
 
         do {
-            val (currentTasks, followingTasks) = splitTasks(remainingTasks, today)
-            val addedTasks = generateDayTasks(templateTasks, finishedTasks.toSet(), today).subtract(currentTasks.toSet())
-            val sortedTasks = sort(currentTasks + addedTasks, today)
+
+            remainingTasks = remainingTasks.filter { it.status == TaskStatus.REMAINING }
+
+            val addedTasks = generateDayTasks(templateTasks, today).subtract(nonTemplateTasks.toSet()).toList()
+            val (currentTasks, followingTasks) = splitTasks(remainingTasks + addedTasks, today)
+            val sortedTasks = sort(currentTasks, today)
             val (tasksToday, tasksTomorrow) = sortedTasks.partition { it.startTime.plusSeconds(it.timeLeft) < today.plusDays(1).atStartOfDay() }
+
             remainingTasks = tasksTomorrow + followingTasks
+
             tasksToReturn = tasksToday
+
             today = today.plusDays(1)
+
         } while (!today.isAfter(endDay))
 
         return tasksToReturn

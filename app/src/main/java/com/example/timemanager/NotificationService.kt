@@ -8,7 +8,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.app.PendingIntent
 import android.graphics.Color
-import android.util.Log
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -28,12 +27,28 @@ class NotificationService : Service(), CoroutineScope {
 
     private val channelId = "NotificationChannel"
     private val notificationId = 1
-    private val notificationViewModel: NotificationViewModel by lazy { NotificationViewModel(application) }
     private lateinit var builder: NotificationCompat.Builder
     private lateinit var manager: NotificationManagerCompat
     private val binder = Binder()
     private val delay = Delay()
+    private val runningTasks: MutableList<Task> = mutableListOf()
     private var isUpdateRunning = false
+    private var runningTaskIndex = 0
+
+    private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
+        else -> @Suppress("DEPRECATION") extras?.getParcelable(key) as? T
+    }
+
+    init {
+        startUpdate()
+    }
+
+    private fun decreaseRunningTaskTime() {
+        runningTasks.forEach {
+            it.timeLeft -= if (it.timeLeft > 0) 1 else 0
+        }
+    }
 
     private fun startUpdate() {
         if (!isUpdateRunning) {
@@ -41,9 +56,9 @@ class NotificationService : Service(), CoroutineScope {
                 isUpdateRunning = true
                 try {
                     while (isActive) {
-                        //notificationViewModel.updateTaskTimes()
-                        notificationViewModel.updateTasks()
-                        updateNotification(notificationViewModel.getTask(), notificationViewModel.position, notificationViewModel.count)
+                        if (runningTasks.size > 0) {
+                            onStartCommand(null, 0, 0)
+                        }
                         delay.delayToNextSecond(100)
                     }
                 } finally {
@@ -51,6 +66,19 @@ class NotificationService : Service(), CoroutineScope {
                 }
             }
         }
+    }
+
+    private fun sendIntentToMainActivity(actionName: String, taskKey: TaskKey? = null, value: Long? = null) {
+        val intent = Intent(Variables.MAIN_ACTIVITY_INTENT).apply {
+            putExtra(Variables.ACTION_NAME, actionName)
+            taskKey?.let {
+                putExtra(Variables.KEY, it)
+            }
+            value?.let {
+                putExtra(Variables.VALUE, it)
+            }
+        }
+        sendBroadcast(intent)
     }
 
     private fun kill(){
@@ -66,36 +94,72 @@ class NotificationService : Service(), CoroutineScope {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d("NotificationService", "Service start command received")
 
         intent?.let {
             when(it.action) {
-                "ACTION_NOTIFICATION_FORWARD" -> {
-                    notificationViewModel.forward()
+                Variables.ACTION_ADD -> {
+                    intent.parcelable<Task>(Variables.TASK)!!.let { task ->
+                        task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L)
+                        if (task !in runningTasks) { runningTasks.add(task) } }
                 }
-                "ACTION_NOTIFICATION_BACK" -> {
-                    notificationViewModel.back()
+                Variables.ACTION_REMOVE -> {
+                    intent.parcelable<TaskKey>(Variables.KEY)!!.let { key ->
+                        runningTasks.removeIf {task -> key.equals(task)}
+                        if (runningTasks.size == 0) {
+                            kill()
+                            return START_STICKY
+                        }
+                        runningTaskIndex %= maxOf(runningTasks.size, 1)
+                    }
                 }
-                "ACTION_PLAY" -> {
-                    notificationViewModel.updateRunningState()
+                Variables.ACTION_NOTIFICATION_SET_TIME -> {
+                    intent.parcelable<TaskKey>(Variables.KEY)!!.let {key ->
+                        runningTasks.forEach { task ->
+                            if (key.equals(task)) { task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L) }
+                        }
+                    }
                 }
-                "ACTION_PREVIOUS" -> {
-                    // Handle previous task action
+                Variables.ACTION_NOTIFICATION_FORWARD -> {
+                    val task = runningTasks[runningTaskIndex]
+                    val taskKey = TaskKey(task.id, task.createdTime, isTemplate = false)
+                    task.timeLeft = maxOf(task.timeLeft - 30, 0)
+                    sendIntentToMainActivity(Variables.ACTION_SET_TIME, taskKey = taskKey, value = task.timeLeft)
                 }
-                "ACTION_NEXT" -> {
-                    // Handle next task action
+                Variables.ACTION_NOTIFICATION_BACK -> {
+                    val task = runningTasks[runningTaskIndex]
+                    val taskKey = TaskKey(task.id, task.createdTime, isTemplate = false)
+                    task.timeLeft = minOf(task.timeLeft + 30, task.duration)
+                    sendIntentToMainActivity(Variables.ACTION_SET_TIME, taskKey = taskKey, value = task.timeLeft)
                 }
-                "ACTION_SET_TIME" -> {
-
+                Variables.ACTION_NOTIFICATION_PLAY -> {
+                    val taskKey = TaskKey(runningTasks[runningTaskIndex].id, runningTasks[runningTaskIndex].createdTime, isTemplate = false)
+                    runningTasks.removeAt(runningTaskIndex)
+                    sendIntentToMainActivity(Variables.ACTION_START, taskKey = taskKey)
+                    if (runningTasks.size == 0) {
+                        kill()
+                        return START_STICKY
+                    }
+                    runningTaskIndex %= maxOf(runningTasks.size, 1)
                 }
-                "ACTION_START" -> {
-                    startUpdate()
+                Variables.ACTION_NOTIFICATION_PREVIOUS -> {
+                    val size = runningTasks.size
+                    if (size > 0) {
+                        runningTaskIndex = (runningTaskIndex + size - 1) % size
+                    }
                 }
-                else -> {
-                    // Handle other actions
+                Variables.ACTION_NOTIFICATION_NEXT -> {
+                    val size = runningTasks.size
+                    if (size > 0) {
+                        runningTaskIndex = (runningTaskIndex + 1) % size
+                    }
                 }
+                else -> throw IllegalArgumentException("Unsupported action: ${it.action}")
             }
+        } ?: run {
+            decreaseRunningTaskTime()
         }
+
+        updateNotification(runningTasks[runningTaskIndex], runningTaskIndex, runningTasks.size)
 
         return START_STICKY
     }
@@ -140,23 +204,23 @@ class NotificationService : Service(), CoroutineScope {
     }
 
     private fun setButtonFunctions(notificationBigLayout: RemoteViews) {
-        val nextIntent = Intent(this, NotificationService::class.java).apply { action = "ACTION_NOTIFICATION_FORWARD" }
+        val nextIntent = Intent(this, NotificationService::class.java).apply { action = Variables.ACTION_NOTIFICATION_FORWARD }
         val pendingNextIntent = PendingIntent.getService(this, 0, nextIntent, PendingIntent.FLAG_IMMUTABLE)
         notificationBigLayout.setOnClickPendingIntent(R.id.notification_duration_forward, pendingNextIntent)
 
-        val previousIntent = Intent(this, NotificationService::class.java).apply { action = "ACTION_NOTIFICATION_BACK" }
+        val previousIntent = Intent(this, NotificationService::class.java).apply { action = Variables.ACTION_NOTIFICATION_BACK }
         val pendingPreviousIntent = PendingIntent.getService(this, 1, previousIntent, PendingIntent.FLAG_IMMUTABLE)
         notificationBigLayout.setOnClickPendingIntent(R.id.notification_duration_back, pendingPreviousIntent)
 
-        val playIntent = Intent(this, NotificationService::class.java).apply { action = "ACTION_PLAY" }
+        val playIntent = Intent(this, NotificationService::class.java).apply { action = Variables.ACTION_NOTIFICATION_PLAY }
         val pendingPlayIntent = PendingIntent.getService(this, 2, playIntent, PendingIntent.FLAG_IMMUTABLE)
         notificationBigLayout.setOnClickPendingIntent(R.id.notification_play, pendingPlayIntent)
 
-        val previousTaskIntent = Intent(this, NotificationService::class.java).apply { action = "ACTION_PREVIOUS" }
+        val previousTaskIntent = Intent(this, NotificationService::class.java).apply { action = Variables.ACTION_NOTIFICATION_PREVIOUS }
         val pendingPreviousTaskIntent = PendingIntent.getService(this, 3, previousTaskIntent, PendingIntent.FLAG_IMMUTABLE)
         notificationBigLayout.setOnClickPendingIntent(R.id.previous_task, pendingPreviousTaskIntent)
 
-        val nextTaskIntent = Intent(this, NotificationService::class.java).apply { action = "ACTION_NEXT" }
+        val nextTaskIntent = Intent(this, NotificationService::class.java).apply { action = Variables.ACTION_NOTIFICATION_NEXT }
         val nextPreviousTaskIntent = PendingIntent.getService(this, 4, nextTaskIntent, PendingIntent.FLAG_IMMUTABLE)
         notificationBigLayout.setOnClickPendingIntent(R.id.next_task, nextPreviousTaskIntent)
     }

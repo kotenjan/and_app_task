@@ -53,10 +53,4 @@ interface TaskDao {
 
     @Query("DELETE FROM tasks")
     suspend fun prune()
-
-    //@Transaction
-    //suspend fun updateTaskTimes() {
-    //    finishTasksWithNoTimeLeft()
-    //    decrementTimeLeftForRunningTasks()
-    //}
 }
