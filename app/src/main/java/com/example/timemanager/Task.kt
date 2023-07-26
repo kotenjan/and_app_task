@@ -48,12 +48,7 @@ data class Task(
         return (other.id == id) && (other.createdTime == createdTime) && (other.isTemplate == isTemplate)
     }
 
-    private fun compareKey(other: TaskKey): Boolean {
-        return (other.id == id) && (other.createdTime == createdTime) && (other.isTemplate == isTemplate)
-    }
-
     override fun equals(other: Any?): Boolean {
-        if (other is TaskKey) return compareKey(other)
         if (other is Task) return compareTask(other)
         return false
     }

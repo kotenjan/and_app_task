@@ -1,7 +1,6 @@
 package com.example.timemanager
 
 object Variables {
-    const val KEY = "com.example.app.KEY"
     const val VALUE = "com.example.app.VALUE"
     const val MAIN_ACTIVITY_INTENT = "com.example.app.MAIN_ACTIVITY_INTENT"
     const val ACTION_NAME = "com.example.app.INTENT_TYPE"

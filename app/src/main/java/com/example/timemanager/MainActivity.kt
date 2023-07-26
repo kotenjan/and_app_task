@@ -45,12 +45,12 @@ class MainActivity : ComponentActivity() {
             intent?.let {
                 when (val actionName = it.getStringExtra(Variables.ACTION_NAME)) {
                     Variables.ACTION_START -> {
-                        intent.parcelable<TaskKey>(Variables.KEY)!!.let {key ->
-                            
+                        intent.parcelable<Task>(Variables.TASK)!!.let {key ->
+                            taskViewModel.setRunningState(key, 0, displayDay)
                         }
                     }
                     Variables.ACTION_SET_TIME -> {
-                        intent.parcelable<TaskKey>(Variables.KEY)!!.let {key ->
+                        intent.parcelable<Task>(Variables.TASK)!!.let {key ->
                             intent.getLongExtra(Variables.VALUE, 0L)
                         }
                     }

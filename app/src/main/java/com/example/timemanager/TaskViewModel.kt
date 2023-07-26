@@ -19,7 +19,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
     private val taskDatabase: TaskDatabase by lazy { TaskDatabase.getDatabase(application) }
     private val taskDao: TaskDao by lazy { taskDatabase.taskDao() }
     private val updateMutex = Mutex()
-    private val tasks: MutableMap<TaskKey, Task> = mutableMapOf()
+    private val tasks: MutableMap<Task, Task> = mutableMapOf()
     val tasksLiveData = MutableLiveData<List<Task>>()
 
     private suspend fun getTasks(): List<Task> {
@@ -28,7 +28,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
-    private fun sendIntentToNotificationService(actionName: String, task: Task? = null, taskKey: TaskKey? = null, value: Long? = null) {
+    private fun sendIntentToNotificationService(actionName: String, task: Task? = null, value: Long? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val context = application.applicationContext
 
@@ -36,9 +36,6 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                 action = actionName
                 task?.let {
                     putExtra(Variables.TASK, it)
-                }
-                taskKey?.let {
-                    putExtra(Variables.KEY, it)
                 }
                 value?.let {
                     putExtra(Variables.VALUE, it)
@@ -116,8 +113,8 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                     .forEach { createdTime ->
                         val date = dateAtTime(createdTime.toLocalDate(), task.createdTime)
                         val newTask = task.copy(createdTime = date, isTemplate = false)
-                        val key = TaskKey(task.id, date, false)
-                        if (key !in tasks) {
+                        //val key = TaskKey(task.id, date, false)
+                        if (newTask !in tasks) {
                             update(Variables.ACTION_ADD, newTask, displayDay = displayDay)
                         }
                     }
@@ -137,74 +134,75 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                             tasks[key] = value.copy(timeLeft = timeLeft)
                             if (timeLeft <= 0) {
                                 tasks[key]!!.status = TaskStatus.FINISHED
-                                sendIntentToNotificationService(Variables.ACTION_REMOVE, taskKey = key)
+                                sendIntentToNotificationService(Variables.ACTION_REMOVE, task = key)
                             }
                         }
                     }
                 }
                 Variables.ACTION_ADD -> {
                     currentTask!!.let {
-                        val taskKey = TaskKey(it.id, it.createdTime, it.isTemplate)
-                        tasks[taskKey] = it
+                        tasks[it] = it
                     }
                 }
                 Variables.ACTION_REMOVE -> {
                     currentTask!!.let {
                         val removeAll = value == 1L
-                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
+                        val newTask = it.copy(status = TaskStatus.FINISHED, isTemplate = false)
                         if (!removeAll) {
-                            tasks[taskKey] = it.copy(status = TaskStatus.FINISHED, isTemplate = false)
+                            tasks[newTask] = newTask
                         } else {
-                            tasks.keys.retainAll { key -> key.id != it.id }
+                            tasks.keys.retainAll { key -> key.id != newTask.id }
                         }
                         if (currentTask.isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_REMOVE, taskKey = taskKey)
+                            sendIntentToNotificationService(Variables.ACTION_REMOVE, task = newTask) //TODO: Add value (if remove all)
                         }
                     }
                 }
                 Variables.ACTION_SET_TIME -> {
                     currentTask!!.let {
-                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
-                        tasks[taskKey] = it.copy(timeLeft = value, isTemplate = false)
+                        val newTask = it.copy(timeLeft = value, isTemplate = false)
+                        tasks[newTask] = newTask
                         if (currentTask.isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, taskKey = taskKey, value = value)
+                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = newTask, value = value)
                         }
                     }
                 }
                 Variables.ACTION_MODIFY_TIME -> {
                     currentTask!!.let {
-                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
-                        val timeLeft = minOf(it.duration, maxOf(value + (tasks[taskKey]?.timeLeft ?: it.timeLeft), 0))
-                        tasks[taskKey] = it.copy(timeLeft = timeLeft, isTemplate = false)
+                        val newTask = it.copy(isTemplate = false)
+                        val timeLeft = minOf(it.duration, maxOf(value + (tasks[newTask]?.timeLeft ?: it.timeLeft), 0))
+                        newTask.timeLeft = timeLeft
+
+                        tasks[newTask] = newTask
                         if (currentTask.isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, taskKey = taskKey, value = timeLeft)
+                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = newTask, value = timeLeft)
                         }
                     }
                 }
                 Variables.ACTION_SET_RUNNING_STATE -> {
                     currentTask!!.let {
                         val isRunning = value == 1L
-                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
-                        tasks[taskKey]?.let {task ->
+                        val newTask = it.copy(isRunning = isRunning, isTemplate = false)
+                        tasks[newTask]?.let {task ->
                             task.isRunning = isRunning
                         } ?: run {
-                            tasks[taskKey] = it.copy(isRunning = isRunning)
+                            tasks[newTask] = newTask
                         }
                         if (isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_ADD, it, value = tasks[taskKey]!!.timeLeft)
+                            sendIntentToNotificationService(Variables.ACTION_ADD, newTask, value = tasks[newTask]!!.timeLeft)
                         } else {
-                            sendIntentToNotificationService(Variables.ACTION_REMOVE, taskKey = taskKey)
+                            sendIntentToNotificationService(Variables.ACTION_REMOVE, task = newTask)
                         }
                     }
                 }
                 Variables.ACTION_SET_DETAIL -> {
                     currentTask!!.let {
                         val isDetailVisible = value == 1L
-                        val taskKey = TaskKey(it.id, it.createdTime, isTemplate = false)
-                        tasks[taskKey]?.let {task ->
+                        val newTask = it.copy(isDetailVisible = isDetailVisible, isTemplate = false)
+                        tasks[newTask]?.let {task ->
                             task.isDetailVisible = isDetailVisible
                         } ?: run {
-                            tasks[taskKey] = it.copy(isDetailVisible = isDetailVisible, isTemplate = false)
+                            tasks[newTask] = newTask
                         }
                     }
                 }

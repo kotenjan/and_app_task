@@ -68,11 +68,11 @@ class NotificationService : Service(), CoroutineScope {
         }
     }
 
-    private fun sendIntentToMainActivity(actionName: String, taskKey: TaskKey? = null, value: Long? = null) {
+    private fun sendIntentToMainActivity(actionName: String, task: Task? = null, value: Long? = null) {
         val intent = Intent(Variables.MAIN_ACTIVITY_INTENT).apply {
             putExtra(Variables.ACTION_NAME, actionName)
-            taskKey?.let {
-                putExtra(Variables.KEY, it)
+            task?.let {
+                putExtra(Variables.TASK, it)
             }
             value?.let {
                 putExtra(Variables.VALUE, it)
@@ -103,8 +103,8 @@ class NotificationService : Service(), CoroutineScope {
                         if (task !in runningTasks) { runningTasks.add(task) } }
                 }
                 Variables.ACTION_REMOVE -> {
-                    intent.parcelable<TaskKey>(Variables.KEY)!!.let { key ->
-                        runningTasks.removeIf {task -> key.equals(task)}
+                    intent.parcelable<Task>(Variables.TASK)!!.let { key ->
+                        runningTasks.removeIf {task -> key == task }
                         if (runningTasks.size == 0) {
                             kill()
                             return START_STICKY
@@ -113,28 +113,26 @@ class NotificationService : Service(), CoroutineScope {
                     }
                 }
                 Variables.ACTION_NOTIFICATION_SET_TIME -> {
-                    intent.parcelable<TaskKey>(Variables.KEY)!!.let {key ->
+                    intent.parcelable<Task>(Variables.TASK)!!.let {key ->
                         runningTasks.forEach { task ->
-                            if (key.equals(task)) { task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L) }
+                            if (key == task) { task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L) }
                         }
                     }
                 }
                 Variables.ACTION_NOTIFICATION_FORWARD -> {
                     val task = runningTasks[runningTaskIndex]
-                    val taskKey = TaskKey(task.id, task.createdTime, isTemplate = false)
                     task.timeLeft = maxOf(task.timeLeft - 30, 0)
-                    sendIntentToMainActivity(Variables.ACTION_SET_TIME, taskKey = taskKey, value = task.timeLeft)
+                    sendIntentToMainActivity(Variables.ACTION_SET_TIME, task = task, value = task.timeLeft)
                 }
                 Variables.ACTION_NOTIFICATION_BACK -> {
                     val task = runningTasks[runningTaskIndex]
-                    val taskKey = TaskKey(task.id, task.createdTime, isTemplate = false)
                     task.timeLeft = minOf(task.timeLeft + 30, task.duration)
-                    sendIntentToMainActivity(Variables.ACTION_SET_TIME, taskKey = taskKey, value = task.timeLeft)
+                    sendIntentToMainActivity(Variables.ACTION_SET_TIME, task = task, value = task.timeLeft)
                 }
                 Variables.ACTION_NOTIFICATION_PLAY -> {
-                    val taskKey = TaskKey(runningTasks[runningTaskIndex].id, runningTasks[runningTaskIndex].createdTime, isTemplate = false)
+                    val task = runningTasks[runningTaskIndex]
                     runningTasks.removeAt(runningTaskIndex)
-                    sendIntentToMainActivity(Variables.ACTION_START, taskKey = taskKey)
+                    sendIntentToMainActivity(Variables.ACTION_START, task = task)
                     if (runningTasks.size == 0) {
                         kill()
                         return START_STICKY
