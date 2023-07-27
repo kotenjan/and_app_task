@@ -89,10 +89,10 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
-    fun setRunningState(task: Task, value: Long, displayDay: LocalDate) {
+    fun modifyRunningState(task: Task, displayDay: LocalDate) {
         viewModelScope.launch(Dispatchers.IO) {
             val action = Variables.ACTION_SET_RUNNING_STATE
-            update(action, task, value, displayDay = displayDay)
+            update(action, task, displayDay = displayDay)
         }
     }
 
@@ -123,19 +123,31 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
+    private fun getOrCreate(task: Task): Task {
+        if (!task.isTemplate) {
+            return tasks[task]?.copy() ?: task.copy()
+        }
+        return task.copy(isTemplate = false)
+    }
+
     private suspend fun update(action: String, currentTask: Task? = null, value: Long = 0, displayDay: LocalDate) {
         updateMutex.withLock {
 
             when(action) {
                 Variables.ACTION_TIME_DECREASE -> {
-                    tasks.forEach { (key, value) ->
-                        if (value.isRunning && value.status == TaskStatus.REMAINING) {
-                            val timeLeft = maxOf(value.timeLeft - 1, 0)
-                            tasks[key] = value.copy(timeLeft = timeLeft)
-                            if (timeLeft <= 0) {
-                                tasks[key]!!.status = TaskStatus.FINISHED
-                                sendIntentToNotificationService(Variables.ACTION_REMOVE, task = key)
+                    tasks.entries.forEach { entry ->
+                        val task = entry.value
+                        if (task.isRunning && task.status == TaskStatus.REMAINING) {
+                            val timeLeft = maxOf(task.timeLeft - 1, 0)
+
+                            val updatedTask = if (timeLeft <= 0) {
+                                sendIntentToNotificationService(Variables.ACTION_REMOVE, task = entry.key)
+                                task.copy(timeLeft = timeLeft, status = TaskStatus.FINISHED)
+                            } else {
+                                task.copy(timeLeft = timeLeft)
                             }
+
+                            tasks[entry.key] = updatedTask
                         }
                     }
                 }
@@ -146,64 +158,65 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                 }
                 Variables.ACTION_REMOVE -> {
                     currentTask!!.let {
-                        val removeAll = value == 1L
-                        val newTask = it.copy(status = TaskStatus.FINISHED, isTemplate = false)
-                        if (!removeAll) {
-                            tasks[newTask] = newTask
+                        val task = getOrCreate(it)
+
+                        if (value != 1L) {
+                            task.status = TaskStatus.FINISHED
+                            tasks[task] = task
                         } else {
-                            tasks.keys.retainAll { key -> key.id != newTask.id }
+                            tasks.keys.removeIf { key -> key.id == task.id }
                         }
-                        if (currentTask.isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_REMOVE, task = newTask) //TODO: Add value (if remove all)
+
+                        if (task.isRunning) {
+                            sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task, value = value) //TODO: implement value in notification
                         }
                     }
                 }
                 Variables.ACTION_SET_TIME -> {
                     currentTask!!.let {
-                        val newTask = it.copy(timeLeft = value, isTemplate = false)
-                        tasks[newTask] = newTask
-                        if (currentTask.isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = newTask, value = value)
+                        val task = getOrCreate(it)
+
+                        task.timeLeft = value
+                        tasks[task] = task
+
+                        if (task.isRunning) {
+                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = task, value = value)
                         }
                     }
                 }
                 Variables.ACTION_MODIFY_TIME -> {
                     currentTask!!.let {
-                        val newTask = it.copy(isTemplate = false)
-                        val timeLeft = minOf(it.duration, maxOf(value + (tasks[newTask]?.timeLeft ?: it.timeLeft), 0))
-                        newTask.timeLeft = timeLeft
+                        val task = getOrCreate(it)
+                        val timeLeft = minOf(it.duration, maxOf(value + task.timeLeft, 0))
 
-                        tasks[newTask] = newTask
-                        if (currentTask.isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = newTask, value = timeLeft)
+                        task.timeLeft = timeLeft
+                        tasks[task] = task
+
+                        if (task.isRunning) {
+                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = task, value = timeLeft)
                         }
                     }
                 }
                 Variables.ACTION_SET_RUNNING_STATE -> {
                     currentTask!!.let {
-                        val isRunning = value == 1L
-                        val newTask = it.copy(isRunning = isRunning, isTemplate = false)
-                        tasks[newTask]?.let {task ->
-                            task.isRunning = isRunning
-                        } ?: run {
-                            tasks[newTask] = newTask
-                        }
+                        val task = getOrCreate(it)
+                        val isRunning = task.timeLeft > 0 && task.status == TaskStatus.REMAINING && !task.isRunning
+
+                        task.isRunning = isRunning
+                        tasks[task] = task
+
                         if (isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_ADD, newTask, value = tasks[newTask]!!.timeLeft)
+                            sendIntentToNotificationService(Variables.ACTION_ADD, task, value = task.timeLeft)
                         } else {
-                            sendIntentToNotificationService(Variables.ACTION_REMOVE, task = newTask)
+                            sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task)
                         }
                     }
                 }
                 Variables.ACTION_SET_DETAIL -> {
                     currentTask!!.let {
-                        val isDetailVisible = value == 1L
-                        val newTask = it.copy(isDetailVisible = isDetailVisible, isTemplate = false)
-                        tasks[newTask]?.let {task ->
-                            task.isDetailVisible = isDetailVisible
-                        } ?: run {
-                            tasks[newTask] = newTask
-                        }
+                        val task = getOrCreate(it)
+                        task.isDetailVisible = !task.isDetailVisible
+                        tasks[task] = task
                     }
                 }
                 else -> throw IllegalArgumentException("Unsupported action: $action")

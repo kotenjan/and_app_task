@@ -8,21 +8,15 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Bundle
 import android.os.Parcelable
-import android.util.Log
 import android.view.LayoutInflater
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.launch
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 
@@ -46,7 +40,7 @@ class MainActivity : ComponentActivity() {
                 when (val actionName = it.getStringExtra(Variables.ACTION_NAME)) {
                     Variables.ACTION_START -> {
                         intent.parcelable<Task>(Variables.TASK)!!.let {key ->
-                            taskViewModel.setRunningState(key, 0, displayDay)
+                            taskViewModel.modifyRunningState(key, displayDay)
                         }
                     }
                     Variables.ACTION_SET_TIME -> {

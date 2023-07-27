@@ -1,7 +1,6 @@
 package com.example.timemanager
 
 import android.content.Context
-import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.LayerDrawable
@@ -75,7 +74,7 @@ class TaskAdapter(
         override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
             val oldTask = oldTasks[oldItemPosition]
             val newTask = newTasks[newItemPosition]
-            return oldTask.timeLeft == newTask.timeLeft && oldTask.startTime == newTask.startTime
+            return oldTask.timeLeft == newTask.timeLeft && oldTask.startTime == newTask.startTime && oldTask.isRunning == newTask.isRunning
         }
 
         override fun getChangePayload(oldItemPosition: Int, newItemPosition: Int): Any? {
@@ -101,6 +100,7 @@ class TaskAdapter(
         private val background: LinearLayout = view.findViewById(R.id.background)
         private val control: LinearLayout = view.findViewById(R.id.control)
         private val picker: ColorPicker = ColorPicker()
+        private var running = true
 
         private fun expand(view: View) {
 
@@ -194,11 +194,7 @@ class TaskAdapter(
             }
 
             playButton.setOnClickListener {
-                if (task.isRunning) {
-                    stopTask(task, changeButton = true)
-                } else {
-                    startTask(task, changeButton = true)
-                }
+                taskViewModel.modifyRunningState(task, displayDay)
             }
 
             removeButton.setOnClickListener{
@@ -207,8 +203,6 @@ class TaskAdapter(
 
             taskProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
 
-                var running = true
-
                 override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
                     if (fromUser) {
                         taskViewModel.setTime(task, task.duration - progress, displayDay)
@@ -216,44 +210,15 @@ class TaskAdapter(
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar) {
-                    running = task.isRunning
-                    stopTask(task, changeButton = false)
+                    taskViewModel.modifyRunningState(task, displayDay)
                 }
 
                 override fun onStopTrackingTouch(seekBar: SeekBar) {
-                    if (running) {
-                        startTask(task, changeButton = false)
-                    }
+                    taskViewModel.modifyRunningState(task, displayDay)
                 }
             })
 
             updateTask(task)
-        }
-
-        private fun startTask(task: Task, changeButton: Boolean){
-            if (!task.isRunning && task.timeLeft > 0){
-
-                task.isRunning = true
-
-                taskViewModel.setRunningState(task, 1, displayDay)
-
-                if (changeButton) {
-                    playButton.setImageResource(R.drawable.ic_pause)
-                }
-            } else {
-                stopTask(task, changeButton)
-            }
-        }
-
-        private fun stopTask(task: Task, changeButton: Boolean){
-
-            task.isRunning = false
-
-            taskViewModel.setRunningState(task, 0, displayDay)
-
-            if (changeButton) {
-                playButton.setImageResource(R.drawable.ic_play)
-            }
         }
 
         fun updateTask(task: Task) {
@@ -269,6 +234,12 @@ class TaskAdapter(
                 String.format("%02d:%02d", hours, minutes)
             } else {
                 String.format("%02d:%02d", minutes, seconds)
+            }
+
+            if (task.isRunning) {
+                playButton.setImageResource(R.drawable.ic_pause)
+            } else {
+                playButton.setImageResource(R.drawable.ic_play)
             }
 
             taskProgress.progress = task.duration.minus(task.timeLeft).toInt()
