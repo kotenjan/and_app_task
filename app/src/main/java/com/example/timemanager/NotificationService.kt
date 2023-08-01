@@ -156,8 +156,9 @@ class NotificationService : Service(), CoroutineScope {
         } ?: run {
             decreaseRunningTaskTime()
         }
-
-        updateNotification(runningTasks[runningTaskIndex], runningTaskIndex, runningTasks.size)
+        if (runningTasks.size > 0) {
+            updateNotification(runningTasks[runningTaskIndex], runningTaskIndex, runningTasks.size)
+        }
 
         return START_STICKY
     }

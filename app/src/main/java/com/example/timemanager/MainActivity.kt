@@ -45,7 +45,7 @@ class MainActivity : ComponentActivity() {
                     }
                     Variables.ACTION_SET_TIME -> {
                         intent.parcelable<Task>(Variables.TASK)!!.let {key ->
-                            intent.getLongExtra(Variables.VALUE, 0L)
+                            taskViewModel.setTime(key, intent.getLongExtra(Variables.VALUE, 0L), displayDay)
                         }
                     }
                     else -> throw IllegalArgumentException("Unsupported action: $actionName")

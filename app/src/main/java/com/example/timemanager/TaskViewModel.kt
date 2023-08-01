@@ -20,6 +20,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
     private val taskDao: TaskDao by lazy { taskDatabase.taskDao() }
     private val updateMutex = Mutex()
     private val tasks: MutableMap<Task, Task> = mutableMapOf()
+    private var stoppedRunning = false
     val tasksLiveData = MutableLiveData<List<Task>>()
 
     private suspend fun getTasks(): List<Task> {
@@ -89,10 +90,10 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
-    fun modifyRunningState(task: Task, displayDay: LocalDate) {
+    fun modifyRunningState(task: Task, displayDay: LocalDate, fromSeekBar: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val action = Variables.ACTION_SET_RUNNING_STATE
-            update(action, task, displayDay = displayDay)
+            update(action, task, displayDay = displayDay, value = if (fromSeekBar) 1L else 0L)
         }
     }
 
@@ -200,12 +201,20 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                 Variables.ACTION_SET_RUNNING_STATE -> {
                     currentTask!!.let {
                         val task = getOrCreate(it)
-                        val isRunning = task.timeLeft > 0 && task.status == TaskStatus.REMAINING && !task.isRunning
 
-                        task.isRunning = isRunning
+                        var newRunningState = task.status == TaskStatus.REMAINING && !task.isRunning
+
+                        if (value == 1L) {
+                            if (newRunningState) {
+                                newRunningState = stoppedRunning
+                            }
+                            stoppedRunning = task.isRunning && !newRunningState
+                        }
+
+                        task.isRunning = newRunningState
                         tasks[task] = task
 
-                        if (isRunning) {
+                        if (newRunningState) {
                             sendIntentToNotificationService(Variables.ACTION_ADD, task, value = task.timeLeft)
                         } else {
                             sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task)
@@ -215,7 +224,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                 Variables.ACTION_SET_DETAIL -> {
                     currentTask!!.let {
                         val task = getOrCreate(it)
-                        task.isDetailVisible = !task.isDetailVisible
+                        task.isDetailVisible = value == 1L
                         tasks[task] = task
                     }
                 }

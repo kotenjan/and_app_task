@@ -210,11 +210,11 @@ class TaskAdapter(
                 }
 
                 override fun onStartTrackingTouch(seekBar: SeekBar) {
-                    taskViewModel.modifyRunningState(task, displayDay)
+                    taskViewModel.modifyRunningState(task, displayDay, true)
                 }
 
                 override fun onStopTrackingTouch(seekBar: SeekBar) {
-                    taskViewModel.modifyRunningState(task, displayDay)
+                    taskViewModel.modifyRunningState(task, displayDay, true)
                 }
             })
 
