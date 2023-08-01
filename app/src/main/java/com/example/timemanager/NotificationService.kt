@@ -8,6 +8,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.app.PendingIntent
 import android.graphics.Color
+import android.media.AudioManager.STREAM_NOTIFICATION
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -59,7 +60,7 @@ class NotificationService : Service(), CoroutineScope {
                         if (runningTasks.size > 0) {
                             onStartCommand(null, 0, 0)
                         }
-                        delay.delayToNextSecond(100)
+                        delay.delayToNextSecond()
                     }
                 } finally {
                     isUpdateRunning = false
@@ -176,7 +177,8 @@ class NotificationService : Service(), CoroutineScope {
     }
 
     private fun createNotificationChannel() {
-        val serviceChannel = NotificationChannel(channelId, "Notification Channel", NotificationManager.IMPORTANCE_DEFAULT)
+        val serviceChannel = NotificationChannel(channelId, "Notification Channel", NotificationManager.IMPORTANCE_LOW)
+        serviceChannel.setSound(null, null)
         val manager = getSystemService(NotificationManager::class.java)
         manager?.createNotificationChannel(serviceChannel)
     }
@@ -200,6 +202,7 @@ class NotificationService : Service(), CoroutineScope {
             .setCustomContentView(notificationLayout)
             .setCustomBigContentView(notificationBigLayout)
             .setOnlyAlertOnce(true)
+            .setSound(null)
     }
 
     private fun setButtonFunctions(notificationBigLayout: RemoteViews) {

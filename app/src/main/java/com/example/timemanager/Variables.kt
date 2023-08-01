@@ -19,10 +19,10 @@ object Variables {
     const val ACTION_NOTIFICATION_PREVIOUS = "com.example.app.ACTION_PREVIOUS"
     const val ACTION_NOTIFICATION_NEXT = "com.example.app.ACTION_NEXT"
     const val ACTION_NOTIFICATION_SET_TIME = "com.example.app.ACTION_SET_TIME"
-    const val WHITE_PERCENTAGE = 32
-    const val BLACK_PERCENTAGE_FRONT = 20
+    const val WHITE_PERCENTAGE = 26
+    const val BLACK_PERCENTAGE_FRONT = 17
     const val BLACK_PERCENTAGE_CONTROL = 32
     const val BLACK_PERCENTAGE_BACK = 55
     const val COLOR_STEP = 164
-    const val COLOR_START = 32
+    const val COLOR_START = 45
 }

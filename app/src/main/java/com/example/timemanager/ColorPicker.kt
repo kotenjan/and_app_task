@@ -1,7 +1,6 @@
 package com.example.timemanager
 
 import kotlin.math.roundToInt
-import kotlin.random.Random
 
 class ColorPicker {
 
