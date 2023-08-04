@@ -12,12 +12,16 @@ import android.media.AudioManager.STREAM_NOTIFICATION
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlin.coroutines.CoroutineContext
 
 class NotificationService : Service(), CoroutineScope {
@@ -26,6 +30,8 @@ class NotificationService : Service(), CoroutineScope {
     override val coroutineContext: CoroutineContext
         get() = Dispatchers.IO + job
 
+    private val taskDatabase: TaskDatabase by lazy { TaskDatabase.getDatabase(application) }
+    private val taskDao: TaskDao by lazy { taskDatabase.taskDao() }
     private val channelId = "NotificationChannel"
     private val notificationId = 1
     private lateinit var builder: NotificationCompat.Builder
@@ -35,6 +41,8 @@ class NotificationService : Service(), CoroutineScope {
     private val runningTasks: MutableList<Task> = mutableListOf()
     private var isUpdateRunning = false
     private var runningTaskIndex = 0
+    private val picker = ColorPicker()
+    private val updateMutex = Mutex()
 
     private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
@@ -45,9 +53,17 @@ class NotificationService : Service(), CoroutineScope {
         startUpdate()
     }
 
-    private fun decreaseRunningTaskTime() {
-        runningTasks.forEach {
-            it.timeLeft -= if (it.timeLeft > 0) 1 else 0
+    private suspend fun decreaseRunningTaskTime() {
+
+        val iterator = runningTasks.iterator()
+
+        while (iterator.hasNext()) {
+            val task = iterator.next()
+            task.timeLeft -= 1
+            if (task.timeLeft <= 0) {
+                taskDao.finishTaskFromNotification(task.id, task.createdTime)
+                iterator.remove()
+            }
         }
     }
 
@@ -70,16 +86,18 @@ class NotificationService : Service(), CoroutineScope {
     }
 
     private fun sendIntentToMainActivity(actionName: String, task: Task? = null, value: Long? = null) {
-        val intent = Intent(Variables.MAIN_ACTIVITY_INTENT).apply {
-            putExtra(Variables.ACTION_NAME, actionName)
-            task?.let {
-                putExtra(Variables.TASK, it)
+        launch {
+            val intent = Intent(Variables.MAIN_ACTIVITY_INTENT).apply {
+                putExtra(Variables.ACTION_NAME, actionName)
+                task?.let {
+                    putExtra(Variables.TASK, it)
+                }
+                value?.let {
+                    putExtra(Variables.VALUE, it)
+                }
             }
-            value?.let {
-                putExtra(Variables.VALUE, it)
-            }
+            sendBroadcast(intent)
         }
-        sendBroadcast(intent)
     }
 
     private fun kill(){
@@ -89,79 +107,88 @@ class NotificationService : Service(), CoroutineScope {
         stopSelf()
     }
 
-    override fun onDestroy() {
-        super.onDestroy()
-        cancel()
+    private suspend fun update(intent: Intent?) {
+        updateMutex.withLock {
+            intent?.let {
+                when(it.action) {
+                    Variables.ACTION_ADD -> {
+                        intent.parcelable<Task>(Variables.TASK)!!.let { task ->
+                            task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L)
+                            val existingTask = runningTasks.find { instance -> instance == task }
+                            if (existingTask == null) {
+                                runningTasks.add(task)
+                            }
+                            existingTask?.timeLeft = task.timeLeft
+                        }
+                    }
+                    Variables.ACTION_REMOVE -> {
+                        intent.parcelable<Task>(Variables.TASK)!!.let { key ->
+                            coroutineScope { launch { taskDao.stopTaskFromNotification(key.id, key.createdTime) } }
+                            runningTasks.removeIf {task -> key == task }
+                            if (runningTasks.size == 0) {
+                                kill()
+                                return
+                            }
+                            runningTaskIndex %= maxOf(runningTasks.size, 1)
+                        }
+                    }
+                    Variables.ACTION_NOTIFICATION_SET_TIME -> {
+                        intent.parcelable<Task>(Variables.TASK)!!.let {key ->
+                            runningTasks.forEach { task ->
+                                if (key == task) { task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L) }
+                            }
+                        }
+                    }
+                    Variables.ACTION_NOTIFICATION_FORWARD -> {
+                        val task = runningTasks[runningTaskIndex]
+                        task.timeLeft = maxOf(task.timeLeft - 30, 0)
+                        sendIntentToMainActivity(Variables.ACTION_SET_TIME, task = task, value = task.timeLeft)
+                    }
+                    Variables.ACTION_NOTIFICATION_BACK -> {
+                        val task = runningTasks[runningTaskIndex]
+                        task.timeLeft = minOf(task.timeLeft + 30, task.duration)
+                        sendIntentToMainActivity(Variables.ACTION_SET_TIME, task = task, value = task.timeLeft)
+                    }
+                    Variables.ACTION_NOTIFICATION_PLAY -> {
+                        val task = runningTasks[runningTaskIndex]
+                        runningTasks.removeAt(runningTaskIndex)
+                        sendIntentToMainActivity(Variables.ACTION_START, task = task)
+                        if (runningTasks.size == 0) {
+                            kill()
+                            return
+                        }
+                        runningTaskIndex %= maxOf(runningTasks.size, 1)
+                    }
+                    Variables.ACTION_NOTIFICATION_PREVIOUS -> {
+                        val size = runningTasks.size
+                        if (size > 0) {
+                            runningTaskIndex = (runningTaskIndex + size - 1) % size
+                        }
+                    }
+                    Variables.ACTION_NOTIFICATION_NEXT -> {
+                        val size = runningTasks.size
+                        if (size > 0) {
+                            runningTaskIndex = (runningTaskIndex + 1) % size
+                        }
+                    }
+                    else -> throw IllegalArgumentException("Unsupported action: ${it.action}")
+                }
+            } ?: run {
+                decreaseRunningTaskTime()
+            }
+            if (runningTasks.size > 0) {
+                updateNotification(runningTasks[runningTaskIndex], runningTaskIndex, runningTasks.size)
+            } else {
+                kill()
+            }
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
 
-        intent?.let {
-            when(it.action) {
-                Variables.ACTION_ADD -> {
-                    intent.parcelable<Task>(Variables.TASK)!!.let { task ->
-                        task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L)
-                        if (task !in runningTasks) { runningTasks.add(task) } }
-                }
-                Variables.ACTION_REMOVE -> {
-                    intent.parcelable<Task>(Variables.TASK)!!.let { key ->
-                        runningTasks.removeIf {task -> key == task }
-                        if (runningTasks.size == 0) {
-                            kill()
-                            return START_STICKY
-                        }
-                        runningTaskIndex %= maxOf(runningTasks.size, 1)
-                    }
-                }
-                Variables.ACTION_NOTIFICATION_SET_TIME -> {
-                    intent.parcelable<Task>(Variables.TASK)!!.let {key ->
-                        runningTasks.forEach { task ->
-                            if (key == task) { task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L) }
-                        }
-                    }
-                }
-                Variables.ACTION_NOTIFICATION_FORWARD -> {
-                    val task = runningTasks[runningTaskIndex]
-                    task.timeLeft = maxOf(task.timeLeft - 30, 0)
-                    sendIntentToMainActivity(Variables.ACTION_SET_TIME, task = task, value = task.timeLeft)
-                }
-                Variables.ACTION_NOTIFICATION_BACK -> {
-                    val task = runningTasks[runningTaskIndex]
-                    task.timeLeft = minOf(task.timeLeft + 30, task.duration)
-                    sendIntentToMainActivity(Variables.ACTION_SET_TIME, task = task, value = task.timeLeft)
-                }
-                Variables.ACTION_NOTIFICATION_PLAY -> {
-                    val task = runningTasks[runningTaskIndex]
-                    runningTasks.removeAt(runningTaskIndex)
-                    sendIntentToMainActivity(Variables.ACTION_START, task = task)
-                    if (runningTasks.size == 0) {
-                        kill()
-                        return START_STICKY
-                    }
-                    runningTaskIndex %= maxOf(runningTasks.size, 1)
-                }
-                Variables.ACTION_NOTIFICATION_PREVIOUS -> {
-                    val size = runningTasks.size
-                    if (size > 0) {
-                        runningTaskIndex = (runningTaskIndex + size - 1) % size
-                    }
-                }
-                Variables.ACTION_NOTIFICATION_NEXT -> {
-                    val size = runningTasks.size
-                    if (size > 0) {
-                        runningTaskIndex = (runningTaskIndex + 1) % size
-                    }
-                }
-                else -> throw IllegalArgumentException("Unsupported action: ${it.action}")
-            }
-        } ?: run {
-            decreaseRunningTaskTime()
-        }
-        if (runningTasks.size > 0) {
-            updateNotification(runningTasks[runningTaskIndex], runningTaskIndex, runningTasks.size)
-        }
+        launch { update(intent) }
 
-        return START_STICKY
+        return START_NOT_STICKY
     }
 
     override fun onBind(intent: Intent): IBinder {
@@ -264,7 +291,7 @@ class NotificationService : Service(), CoroutineScope {
             notificationBigLayout.setViewVisibility(R.id.task_counter_view, View.GONE)
         }
 
-        task?.let { builder.color = Color.parseColor(task.color) }
+        task?.let { builder.color = Color.parseColor(picker.darkenColor(picker.lightenColor(task.color, Variables.WHITE_PERCENTAGE), Variables.BLACK_PERCENTAGE_FRONT)) }
         builder.setCustomContentView(notificationLayout)
         builder.setCustomBigContentView(notificationBigLayout)
 

@@ -5,13 +5,6 @@ import kotlin.math.roundToInt
 class ColorPicker {
 
     fun darkenColor(hexColor: String, percentage: Int): String {
-        require(hexColor.length == 7 && hexColor[0] == '#') {
-            "Color should be in #RRGGBB format"
-        }
-        require(percentage in 0..100) {
-            "Percentage should be between 0 and 100"
-        }
-
         val r = hexColor.substring(1, 3).toInt(16)
         val g = hexColor.substring(3, 5).toInt(16)
         val b = hexColor.substring(5, 7).toInt(16)
@@ -26,14 +19,6 @@ class ColorPicker {
     }
 
     fun lightenColor(hexColor: String, percentage: Int): String {
-
-        require(hexColor.length == 7 && hexColor[0] == '#') {
-            "Color should be in #RRGGBB format"
-        }
-        require(percentage in 0..100) {
-            "Percentage should be between 0 and 100"
-        }
-
         val r = hexColor.substring(1, 3).toInt(16)
         val g = hexColor.substring(3, 5).toInt(16)
         val b = hexColor.substring(5, 7).toInt(16)

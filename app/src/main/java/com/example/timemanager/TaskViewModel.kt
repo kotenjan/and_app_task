@@ -23,9 +23,13 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
     private var stoppedRunning = false
     val tasksLiveData = MutableLiveData<List<Task>>()
 
-    private suspend fun getTasks(): List<Task> {
-        return withContext(Dispatchers.IO) {
-            taskDao.getTasks()
+    fun getTasks(displayDay: LocalDate) {
+        viewModelScope.launch(Dispatchers.IO) {
+            //taskDao.deleteAll()
+            taskDao.getTasks().forEach {
+                println(it)
+                addTask(it, displayDay)
+            }
         }
     }
 
@@ -101,29 +105,6 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         return date.atTime(dateTime.toLocalTime())
     }
 
-    suspend fun loadTasks(displayDay: LocalDate) {
-
-        val databaseTasks: List<Task> = getTasks()
-        val today = LocalDate.now()
-
-        databaseTasks.forEach { task ->
-            if (task.isTemplate) {
-                val intervalDays = Duration.ofDays(task.intervalDays.toLong())
-                generateSequence(task.createdTime) { it + intervalDays }
-                    .takeWhile { it.toLocalDate() < today }
-                    .forEach { createdTime ->
-                        val date = dateAtTime(createdTime.toLocalDate(), task.createdTime)
-                        val newTask = task.copy(createdTime = date, isTemplate = false)
-                        //val key = TaskKey(task.id, date, false)
-                        if (newTask !in tasks) {
-                            update(Variables.ACTION_ADD, newTask, displayDay = displayDay)
-                        }
-                    }
-            }
-            update(Variables.ACTION_ADD, task, displayDay = displayDay)
-        }
-    }
-
     private fun getOrCreate(task: Task): Task {
         if (!task.isTemplate) {
             return tasks[task]?.copy() ?: task.copy()
@@ -131,30 +112,45 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         return task.copy(isTemplate = false)
     }
 
+    private fun insertDatabaseTask(task: Task) {
+        viewModelScope.launch(Dispatchers.IO) {
+            taskDao.insert(task)
+        }
+    }
+
+    private fun removeDatabaseTask(task: Task) {
+        viewModelScope.launch(Dispatchers.IO) {
+            taskDao.deleteAllWithId(task.id)
+        }
+    }
+
     private suspend fun update(action: String, currentTask: Task? = null, value: Long = 0, displayDay: LocalDate) {
         updateMutex.withLock {
 
             when(action) {
                 Variables.ACTION_TIME_DECREASE -> {
-                    tasks.entries.forEach { entry ->
-                        val task = entry.value
+                    tasks.entries.forEach { (key, task) ->
                         if (task.isRunning && task.status == TaskStatus.REMAINING) {
                             val timeLeft = maxOf(task.timeLeft - 1, 0)
+                            lateinit var updatedTask: Task
 
-                            val updatedTask = if (timeLeft <= 0) {
-                                sendIntentToNotificationService(Variables.ACTION_REMOVE, task = entry.key)
-                                task.copy(timeLeft = timeLeft, status = TaskStatus.FINISHED)
+                            if (timeLeft <= 0) {
+                                updatedTask = task.copy(timeLeft = 0, status = TaskStatus.FINISHED)
+                                sendIntentToNotificationService(Variables.ACTION_REMOVE, task = updatedTask)
+                                insertDatabaseTask(updatedTask)
                             } else {
-                                task.copy(timeLeft = timeLeft)
+                                updatedTask = task.copy(timeLeft = timeLeft)
                             }
 
-                            tasks[entry.key] = updatedTask
+                            tasks[updatedTask] = updatedTask
                         }
                     }
                 }
                 Variables.ACTION_ADD -> {
-                    currentTask!!.let {
-                        tasks[it] = it
+                    currentTask!!.let {task ->
+                        tasks[task] = task
+
+                        insertDatabaseTask(task)
                     }
                 }
                 Variables.ACTION_REMOVE -> {
@@ -164,8 +160,12 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                         if (value != 1L) {
                             task.status = TaskStatus.FINISHED
                             tasks[task] = task
+
+                            insertDatabaseTask(task)
                         } else {
                             tasks.keys.removeIf { key -> key.id == task.id }
+
+                            removeDatabaseTask(task)
                         }
 
                         if (task.isRunning) {
@@ -180,6 +180,8 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                         task.timeLeft = value
                         tasks[task] = task
 
+                        insertDatabaseTask(task)
+
                         if (task.isRunning) {
                             sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = task, value = value)
                         }
@@ -192,6 +194,8 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
                         task.timeLeft = timeLeft
                         tasks[task] = task
+
+                        insertDatabaseTask(task)
 
                         if (task.isRunning) {
                             sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = task, value = timeLeft)
@@ -214,6 +218,8 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                         task.isRunning = newRunningState
                         tasks[task] = task
 
+                        insertDatabaseTask(task)
+
                         if (newRunningState) {
                             sendIntentToNotificationService(Variables.ACTION_ADD, task, value = task.timeLeft)
                         } else {
@@ -226,6 +232,8 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                         val task = getOrCreate(it)
                         task.isDetailVisible = value == 1L
                         tasks[task] = task
+
+                        insertDatabaseTask(task)
                     }
                 }
                 else -> throw IllegalArgumentException("Unsupported action: $action")

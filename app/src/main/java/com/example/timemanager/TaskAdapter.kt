@@ -51,7 +51,7 @@ class TaskAdapter(
     private fun start() {
         launch {
 
-            taskViewModel.loadTasks(displayDay)
+            taskViewModel.getTasks(displayDay)
 
             while (isActive) {
                 taskViewModel.updateRunningTasks(displayDay)
@@ -95,7 +95,7 @@ class TaskAdapter(
         private val forwardButton: ImageButton = view.findViewById(R.id.forward)
         private val taskTitle = view.findViewById<TextView>(R.id.title)
         private val taskTimeText = view.findViewById<TextView>(R.id.time_text)
-        private val formatterTime = DateTimeFormatter.ofPattern("HH:mm:ss")
+        private val formatterTime = DateTimeFormatter.ofPattern("HH:mm")
         private val foreground: LinearLayout = view.findViewById(R.id.foreground)
         private val background: LinearLayout = view.findViewById(R.id.background)
         private val control: LinearLayout = view.findViewById(R.id.control)
@@ -233,7 +233,11 @@ class TaskAdapter(
             taskTimeLeft.text = if (hours > 0) {
                 String.format("%02d:%02d", hours, minutes)
             } else {
-                String.format("%02d:%02d", minutes, seconds)
+                if (minutes > 0 || seconds > 0){
+                    String.format("%02d:%02d", minutes, seconds)
+                } else {
+                    "Finished!"
+                }
             }
 
             if (task.isRunning) {
