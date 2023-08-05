@@ -18,8 +18,8 @@ interface TaskDao {
     @Query("DELETE FROM tasks")
     suspend fun deleteAll()
 
-    @Query("UPDATE tasks SET isRunning = 0 WHERE id = :id AND createdTime = :createdTime AND isTemplate = 0")
-    suspend fun stopTaskFromNotification(id: Long, createdTime: LocalDateTime)
+    @Query("UPDATE tasks SET isRunning = 0, timeLeft = :timeLeft WHERE id = :id AND createdTime = :createdTime AND isTemplate = 0")
+    suspend fun stopTaskFromNotification(id: Long, createdTime: LocalDateTime, timeLeft: Long)
 
     @Query("UPDATE tasks SET status = 'FINISHED', isRunning = 0, timeLeft = 0 WHERE id = :id AND createdTime = :createdTime AND isTemplate = 0")
     suspend fun finishTaskFromNotification(id: Long, createdTime: LocalDateTime)

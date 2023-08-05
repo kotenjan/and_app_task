@@ -25,7 +25,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
     fun getTasks(displayDay: LocalDate) {
         viewModelScope.launch(Dispatchers.IO) {
-            //taskDao.deleteAll()
+            taskDao.deleteAll() // TODO: REMOVE this line
             taskDao.getTasks().forEach {
                 println(it)
                 addTask(it, displayDay)
@@ -129,7 +129,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
             when(action) {
                 Variables.ACTION_TIME_DECREASE -> {
-                    tasks.entries.forEach { (key, task) ->
+                    tasks.entries.forEach { (_, task) ->
                         if (task.isRunning && task.status == TaskStatus.REMAINING) {
                             val timeLeft = maxOf(task.timeLeft - 1, 0)
                             lateinit var updatedTask: Task
@@ -157,7 +157,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                     currentTask!!.let {
                         val task = getOrCreate(it)
 
-                        if (value != 1L) {
+                        if (value == 0L) {
                             task.status = TaskStatus.FINISHED
                             tasks[task] = task
 
@@ -169,7 +169,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                         }
 
                         if (task.isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task, value = value) //TODO: implement value in notification
+                            sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task, value = value)
                         }
                     }
                 }
@@ -220,10 +220,12 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
                         insertDatabaseTask(task)
 
-                        if (newRunningState) {
-                            sendIntentToNotificationService(Variables.ACTION_ADD, task, value = task.timeLeft)
-                        } else {
-                            sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task)
+                        if (task.timeLeft > 0) {
+                            if (newRunningState) {
+                                sendIntentToNotificationService(Variables.ACTION_ADD, task, value = task.timeLeft)
+                            } else {
+                                sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task)
+                            }
                         }
                     }
                 }

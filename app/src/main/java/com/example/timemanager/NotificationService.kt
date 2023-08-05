@@ -63,6 +63,8 @@ class NotificationService : Service(), CoroutineScope {
             if (task.timeLeft <= 0) {
                 taskDao.finishTaskFromNotification(task.id, task.createdTime)
                 iterator.remove()
+            } else {
+                taskDao.insert(task)
             }
         }
     }
@@ -123,8 +125,12 @@ class NotificationService : Service(), CoroutineScope {
                     }
                     Variables.ACTION_REMOVE -> {
                         intent.parcelable<Task>(Variables.TASK)!!.let { key ->
-                            coroutineScope { launch { taskDao.stopTaskFromNotification(key.id, key.createdTime) } }
-                            runningTasks.removeIf {task -> key == task }
+                            taskDao.stopTaskFromNotification(key.id, key.createdTime, key.timeLeft)
+                            if (intent.getLongExtra(Variables.VALUE, 0L) == 0L){
+                                runningTasks.removeIf {task -> key == task }
+                            } else {
+                                runningTasks.removeIf {task -> key.id == task.id }
+                            }
                             if (runningTasks.size == 0) {
                                 kill()
                                 return
@@ -142,17 +148,20 @@ class NotificationService : Service(), CoroutineScope {
                     Variables.ACTION_NOTIFICATION_FORWARD -> {
                         val task = runningTasks[runningTaskIndex]
                         task.timeLeft = maxOf(task.timeLeft - 30, 0)
+                        taskDao.insert(task)
                         sendIntentToMainActivity(Variables.ACTION_SET_TIME, task = task, value = task.timeLeft)
                     }
                     Variables.ACTION_NOTIFICATION_BACK -> {
                         val task = runningTasks[runningTaskIndex]
                         task.timeLeft = minOf(task.timeLeft + 30, task.duration)
+                        taskDao.insert(task)
                         sendIntentToMainActivity(Variables.ACTION_SET_TIME, task = task, value = task.timeLeft)
                     }
                     Variables.ACTION_NOTIFICATION_PLAY -> {
-                        val task = runningTasks[runningTaskIndex]
+                        val key = runningTasks[runningTaskIndex]
+                        sendIntentToMainActivity(Variables.ACTION_START, task = key)
+                        taskDao.stopTaskFromNotification(key.id, key.createdTime, key.timeLeft)
                         runningTasks.removeAt(runningTaskIndex)
-                        sendIntentToMainActivity(Variables.ACTION_START, task = task)
                         if (runningTasks.size == 0) {
                             kill()
                             return
