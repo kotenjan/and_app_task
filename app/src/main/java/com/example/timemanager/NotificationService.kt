@@ -9,6 +9,7 @@ import androidx.core.app.NotificationManagerCompat
 import android.app.PendingIntent
 import android.graphics.Color
 import android.media.AudioManager.STREAM_NOTIFICATION
+import android.media.MediaPlayer
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -53,6 +54,12 @@ class NotificationService : Service(), CoroutineScope {
         startUpdate()
     }
 
+    private fun notifyTaskFinished() {
+        val mp = MediaPlayer.create(application, R.raw.finish_sound)
+        mp.setOnCompletionListener { mp.release() }
+        mp.start()
+    }
+
     private suspend fun decreaseRunningTaskTime() {
 
         val iterator = runningTasks.iterator()
@@ -61,6 +68,9 @@ class NotificationService : Service(), CoroutineScope {
             val task = iterator.next()
             task.timeLeft -= 1
             if (task.timeLeft <= 0) {
+
+                notifyTaskFinished()
+
                 taskDao.finishTaskFromNotification(task.id, task.createdTime)
                 iterator.remove()
             } else {
@@ -277,6 +287,9 @@ class NotificationService : Service(), CoroutineScope {
         val notificationBigLayout = RemoteViews(packageName, R.layout.notification_big_layout)
 
         setButtonFunctions(notificationBigLayout)
+
+        notificationLayout.setTextViewText(R.id.notification_title, task?.text)
+        notificationBigLayout.setTextViewText(R.id.notification_title, task?.text)
 
         if ((task?.timeLeft ?: 0) > 0) {
             val timeText = timeLeft(task!!.timeLeft)

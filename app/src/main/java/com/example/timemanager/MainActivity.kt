@@ -5,8 +5,12 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.ColorStateList
+import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.Parcelable
 import android.view.LayoutInflater
 import android.widget.Button
@@ -17,7 +21,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import org.w3c.dom.Text
+import java.time.Duration
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity() {
@@ -28,6 +35,10 @@ class MainActivity : ComponentActivity() {
     private lateinit var displayDay: LocalDate
     private lateinit var taskViewModel: TaskViewModel
     private lateinit var taskAdapter: TaskAdapter
+    private var dayLayoutList: MutableList<LocalDate> = mutableListOf()
+    private var currentButton: TextView? = null
+    private var currentBackground: LinearLayout? = null
+    private val handler = Handler(Looper.getMainLooper())
 
     private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
@@ -54,20 +65,50 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun clickFirstDay() {
+
+        val currentDay = dayLayoutList[0]
+
+        if (displayDay <= currentDay) {
+            val firstView = dayLayout.getChildAt(0)
+
+            val button = firstView.findViewById<TextView>(R.id.dayButton)
+            val background = firstView.findViewById<LinearLayout>(R.id.background)
+
+            dayButtonClick(button, background, currentDay)
+        }
+    }
+
+    private fun dayButtonClick(button: TextView, background: LinearLayout, day: LocalDate) {
+        currentBackground?.setBackgroundResource(R.drawable.day)
+        currentButton?.setBackgroundResource(R.drawable.day)
+        currentButton?.setTextColor(Color.parseColor("#2c2a28"))
+
+        background.setBackgroundResource(R.drawable.create_button_shadow)
+        button.setBackgroundResource(R.drawable.create_button)
+        button.setTextColor(Color.WHITE)
+
+        currentBackground = background
+        currentButton = button
+
+        displayDay = day
+        displayTasks()
+    }
+
     private fun createDayView(day: LocalDate){
         val buttonDayView = LayoutInflater.from(this).inflate(R.layout.button_day, dayLayout, false)
         val button = buttonDayView.findViewById<TextView>(R.id.dayButton)
+        val background = buttonDayView.findViewById<LinearLayout>(R.id.background)
 
         val formatterTime = DateTimeFormatter.ofPattern("dd/MM")
         button.text = "${day.format(formatterTime)}"
 
         button.setOnClickListener {
-            println(day.format(formatterTime))
-            displayDay = day
-            displayTasks()
+            dayButtonClick(button, background, day)
         }
 
         dayLayout.addView(buttonDayView)
+        dayLayoutList.add(day)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -81,9 +122,11 @@ class MainActivity : ComponentActivity() {
         taskRecyclerView.layoutManager = LinearLayoutManager(this)
         dayLayout = findViewById(R.id.dayLayout)
 
-        for (i in 0 until 14){
-            createDayView(LocalDate.now().plusDays(i.toLong()))
+        for (i in 0 until 8){
+            createDayView(displayDay.plusDays(i.toLong()))
         }
+
+        clickFirstDay()
 
         taskViewModel.tasksLiveData.observe(this) { refreshedTasks ->
             taskAdapter.refresh(refreshedTasks)
@@ -95,6 +138,7 @@ class MainActivity : ComponentActivity() {
         }
 
         displayTasks()
+        scheduleMidnightUpdate()
     }
 
     override fun onDestroy() {
@@ -113,6 +157,20 @@ class MainActivity : ComponentActivity() {
     private fun displayTasks() {
         taskAdapter = TaskAdapter(this, taskViewModel, displayDay)
         taskRecyclerView.adapter = taskAdapter
+    }
+
+    private fun scheduleMidnightUpdate() {
+        val nextMidnight = dayLayoutList[0].plusDays(1).atStartOfDay().plusSeconds(1)
+        val delay = Duration.between(LocalDateTime.now(), nextMidnight).toMillis()
+
+        handler.postDelayed({
+            dayLayout.removeViewAt(0)
+            dayLayoutList.removeAt(0)
+
+            createDayView(dayLayoutList[0].plusDays(7))
+            clickFirstDay()
+            scheduleMidnightUpdate()
+        }, delay)
     }
 }
 

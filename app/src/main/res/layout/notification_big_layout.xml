@@ -13,24 +13,26 @@
 
         <TextView
             android:id="@+id/notification_title"
-            android:layout_width="wrap_content"
+            android:layout_width="0dp"
             android:layout_weight="5"
             android:layout_height="wrap_content"
             android:gravity="start"
+            android:singleLine="true"
             android:textColor="#FFFFFF"
             android:textSize="20sp"
             android:textStyle="bold"/>
 
         <TextView
             android:id="@+id/notification_countdown"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:gravity="center"
+            android:layout_width="0dp"
             android:layout_weight="1"
+            android:layout_height="20dp"
+            android:gravity="center"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
 
     </LinearLayout>
+
 
     <LinearLayout
         android:layout_width="match_parent"

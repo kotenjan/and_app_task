@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import android.app.Application
 import android.content.Intent
+import android.media.MediaPlayer
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import kotlinx.coroutines.Dispatchers
@@ -25,10 +26,13 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
     fun getTasks(displayDay: LocalDate) {
         viewModelScope.launch(Dispatchers.IO) {
-            taskDao.deleteAll() // TODO: REMOVE this line
+            //taskDao.deleteAll()
             taskDao.getTasks().forEach {
-                println(it)
-                addTask(it, displayDay)
+                if (it.status == TaskStatus.FINISHED && it.createdTime < displayDay.minusDays(7).atStartOfDay()) {
+                    taskDao.delete(it)
+                } else {
+                    addTask(it, displayDay)
+                }
             }
         }
     }
@@ -112,6 +116,12 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         return task.copy(isTemplate = false)
     }
 
+    private fun notifyTaskFinished() {
+        val mp = MediaPlayer.create(application, R.raw.finish_sound)
+        mp.setOnCompletionListener { mp.release() }
+        mp.start()
+    }
+
     private fun insertDatabaseTask(task: Task) {
         viewModelScope.launch(Dispatchers.IO) {
             taskDao.insert(task)
@@ -136,7 +146,6 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
                             if (timeLeft <= 0) {
                                 updatedTask = task.copy(timeLeft = 0, status = TaskStatus.FINISHED)
-                                sendIntentToNotificationService(Variables.ACTION_REMOVE, task = updatedTask)
                                 insertDatabaseTask(updatedTask)
                             } else {
                                 updatedTask = task.copy(timeLeft = timeLeft)
@@ -226,6 +235,8 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                             } else {
                                 sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task)
                             }
+                        } else {
+                            notifyTaskFinished()
                         }
                     }
                 }

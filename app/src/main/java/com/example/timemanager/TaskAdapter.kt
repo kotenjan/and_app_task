@@ -91,7 +91,8 @@ class TaskAdapter(
         private val taskTimeLeft: TextView = view.findViewById(R.id.task_time_left)
         private val backButton: ImageButton = view.findViewById(R.id.back)
         private val playButton: ImageButton = view.findViewById(R.id.play)
-        private val removeButton: ImageButton = view.findViewById(R.id.remove)
+        private val finishButton: ImageButton = view.findViewById(R.id.finish)
+        private val deleteButton: ImageButton = view.findViewById(R.id.delete)
         private val forwardButton: ImageButton = view.findViewById(R.id.forward)
         private val taskTitle = view.findViewById<TextView>(R.id.title)
         private val taskTimeText = view.findViewById<TextView>(R.id.time_text)
@@ -100,7 +101,6 @@ class TaskAdapter(
         private val background: LinearLayout = view.findViewById(R.id.background)
         private val control: LinearLayout = view.findViewById(R.id.control)
         private val picker: ColorPicker = ColorPicker()
-        private var running = true
 
         private fun expand(view: View) {
 
@@ -197,8 +197,12 @@ class TaskAdapter(
                 taskViewModel.modifyRunningState(task, displayDay)
             }
 
-            removeButton.setOnClickListener{
+            finishButton.setOnClickListener{
                 taskViewModel.deleteTask(task, displayDay, false)
+            }
+
+            deleteButton.setOnClickListener{
+                taskViewModel.deleteTask(task, displayDay, true)
             }
 
             taskProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
@@ -214,7 +218,7 @@ class TaskAdapter(
                 }
 
                 override fun onStopTrackingTouch(seekBar: SeekBar) {
-                    taskViewModel.modifyRunningState(task, displayDay, true)
+                    taskViewModel.modifyRunningState(task, displayDay, task.duration - seekBar.progress > 0L)
                 }
             })
 
