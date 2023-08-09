@@ -39,7 +39,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center"
-                android:text="HHMM"
+                android:text="@string/default_time_estimate"
                 android:layout_marginTop="8dp"
                 android:textColor="#FFFFFF"
                 android:textSize="16sp" />
@@ -51,7 +51,7 @@
                 android:layout_below="@+id/time_text"
                 android:layout_centerHorizontal="true"
                 android:layout_margin="16dp"
-                android:text="Task Title"
+                android:text="@string/default_title"
                 android:gravity="center"
                 android:textColor="#FFFFFF"
                 android:textSize="20sp"
@@ -90,7 +90,7 @@
                     android:textSize="16sp"
                     android:textColor="#FFFFFF"
                     android:layout_centerVertical="true"
-                    android:text="00:00" />
+                    android:text="@string/default_time" />
             </RelativeLayout>
 
             <LinearLayout
@@ -110,7 +110,8 @@
                     android:gravity="center"
                     android:src="@drawable/ic_replay"
                     android:background="@android:color/transparent"
-                    app:tint="@android:color/white" />
+                    app:tint="@android:color/white"
+                    android:contentDescription="@string/back" />
 
                 <ImageButton
                     android:id="@+id/play"
@@ -120,7 +121,8 @@
                     android:gravity="center"
                     android:src="@drawable/ic_play"
                     android:background="@android:color/transparent"
-                    app:tint="@android:color/white" />
+                    app:tint="@android:color/white"
+                    android:contentDescription="@string/play" />
 
                 <ImageButton
                     android:id="@+id/forward"
@@ -130,7 +132,8 @@
                     android:gravity="center"
                     android:src="@drawable/ic_forward"
                     android:background="@android:color/transparent"
-                    app:tint="@android:color/white" />
+                    app:tint="@android:color/white"
+                    android:contentDescription="@string/forward" />
 
             </LinearLayout>
 
@@ -148,7 +151,20 @@
                     android:padding="16dp"
                     android:src="@drawable/ic_remove"
                     android:background="@android:color/transparent"
-                    app:tint="@android:color/white" />
+                    app:tint="@android:color/white"
+                    android:contentDescription="@string/delete" />
+
+                <ImageButton
+                    android:id="@+id/modify"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:gravity="center"
+                    android:padding="16dp"
+                    android:src="@drawable/ic_modify"
+                    android:background="@android:color/transparent"
+                    app:tint="@android:color/white"
+                    android:contentDescription="@string/delete" />
 
                 <ImageButton
                     android:id="@+id/finish"
@@ -159,7 +175,8 @@
                     android:padding="16dp"
                     android:src="@drawable/ic_done"
                     android:background="@android:color/transparent"
-                    app:tint="@android:color/white" />
+                    app:tint="@android:color/white"
+                    android:contentDescription="@string/finish" />
 
             </LinearLayout>
 

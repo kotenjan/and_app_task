@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
-import android.content.res.ColorStateList
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -21,13 +20,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import org.w3c.dom.Text
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), TaskModifyCallback {
 
     private lateinit var addButton: Button
     private lateinit var taskRecyclerView: RecyclerView
@@ -129,12 +127,15 @@ class MainActivity : ComponentActivity() {
         clickFirstDay()
 
         taskViewModel.tasksLiveData.observe(this) { refreshedTasks ->
+            println(refreshedTasks)
             taskAdapter.refresh(refreshedTasks)
         }
 
         addButton.setOnClickListener {
-            val createTaskIntent = Intent(this, CreateTaskActivity::class.java).apply { action = Variables.ACTION_START }
-            resultLauncher.launch(createTaskIntent)
+            val createTaskIntent = Intent(this, CreateTaskActivity::class.java).apply {
+                action = Variables.ACTION_ADD
+            }
+            addTaskResultLauncher.launch(createTaskIntent)
         }
 
         displayTasks()
@@ -146,16 +147,24 @@ class MainActivity : ComponentActivity() {
         unregisterReceiver(notificationReceiver)
     }
 
-    private val resultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    private val addTaskResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             val data: Intent? = result.data
-            val task = data?.parcelable<Task>("task")
+            val task = data?.parcelable<Task>(Variables.TASK)
+            task?.let { taskViewModel.addTask(it, displayDay) }
+        }
+    }
+
+    private val modifyTaskResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data: Intent? = result.data
+            val task = data?.parcelable<Task>(Variables.TASK)
             task?.let { taskViewModel.addTask(it, displayDay) }
         }
     }
 
     private fun displayTasks() {
-        taskAdapter = TaskAdapter(this, taskViewModel, displayDay)
+        taskAdapter = TaskAdapter(this, taskViewModel, displayDay, this)
         taskRecyclerView.adapter = taskAdapter
     }
 
@@ -171,6 +180,14 @@ class MainActivity : ComponentActivity() {
             clickFirstDay()
             scheduleMidnightUpdate()
         }, delay)
+    }
+
+    override fun onModifyTask(task: Task) {
+        val createTaskIntent = Intent(this, CreateTaskActivity::class.java).apply {
+            action = Variables.ACTION_MODIFY
+            putExtra(Variables.TASK, task)
+        }
+        modifyTaskResultLauncher.launch(createTaskIntent)
     }
 }
 

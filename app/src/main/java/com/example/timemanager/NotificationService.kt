@@ -235,13 +235,13 @@ class NotificationService : Service(), CoroutineScope {
 
         setButtonFunctions(notificationBigLayout)
 
-        notificationLayout.setTextViewText(R.id.notification_countdown, "100")
-        notificationBigLayout.setTextViewText(R.id.notification_countdown, "100")
-        notificationLayout.setTextViewText(R.id.notification_title, "My Title")
-        notificationBigLayout.setTextViewText(R.id.notification_title, "My Title")
+        notificationLayout.setTextViewText(R.id.notification_countdown, "")
+        notificationBigLayout.setTextViewText(R.id.notification_countdown, "")
+        notificationLayout.setTextViewText(R.id.notification_title, "All tasks stopped")
+        notificationBigLayout.setTextViewText(R.id.notification_title, "All tasks stopped")
 
         return NotificationCompat.Builder(this, channelId)
-            .setColor(ContextCompat.getColor(this, R.color.defaultTaskColor))
+            .setColor(ContextCompat.getColor(this, R.color.whiteColor))
             .setColorized(true)
             .setSmallIcon(R.drawable.ic_timer)
             .setStyle(NotificationCompat.DecoratedCustomViewStyle())

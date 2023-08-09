@@ -27,7 +27,8 @@ import java.time.format.DateTimeFormatter
 class TaskAdapter(
     private val context: Context,
     private val taskViewModel: TaskViewModel,
-    private val displayDay: LocalDate
+    private val displayDay: LocalDate,
+    private val modifyCallback: TaskModifyCallback
 ) : RecyclerView.Adapter<TaskAdapter.TaskViewHolder>(), CoroutineScope {
 
     private val job = Job()
@@ -74,12 +75,18 @@ class TaskAdapter(
         override fun areContentsTheSame(oldItemPosition: Int, newItemPosition: Int): Boolean {
             val oldTask = oldTasks[oldItemPosition]
             val newTask = newTasks[newItemPosition]
-            return oldTask.timeLeft == newTask.timeLeft && oldTask.startTime == newTask.startTime && oldTask.isRunning == newTask.isRunning
+            return oldTask.timeLeft == newTask.timeLeft &&
+                    oldTask.startTime == newTask.startTime &&
+                    oldTask.isRunning == newTask.isRunning &&
+                    oldTask.color == newTask.color &&
+                    oldTask.text == newTask.text
         }
 
         override fun getChangePayload(oldItemPosition: Int, newItemPosition: Int): Any? {
             val newTask = newTasks[newItemPosition]
-            return if (oldTasks[oldItemPosition] == newTask) newTask else null
+            val oldTask = oldTasks[oldItemPosition]
+
+            return if (oldTask != newTask) null else newTask
         }
     }
 
@@ -92,6 +99,7 @@ class TaskAdapter(
         private val backButton: ImageButton = view.findViewById(R.id.back)
         private val playButton: ImageButton = view.findViewById(R.id.play)
         private val finishButton: ImageButton = view.findViewById(R.id.finish)
+        private val modifyButton: ImageButton = view.findViewById(R.id.modify)
         private val deleteButton: ImageButton = view.findViewById(R.id.delete)
         private val forwardButton: ImageButton = view.findViewById(R.id.forward)
         private val taskTitle = view.findViewById<TextView>(R.id.title)
@@ -201,6 +209,10 @@ class TaskAdapter(
                 taskViewModel.deleteTask(task, displayDay, false)
             }
 
+            modifyButton.setOnClickListener {
+                modifyCallback.onModifyTask(taskViewModel.getTask(task))
+            }
+
             deleteButton.setOnClickListener{
                 taskViewModel.deleteTask(task, displayDay, true)
             }
@@ -225,32 +237,55 @@ class TaskAdapter(
             updateTask(task)
         }
 
-        fun updateTask(task: Task) {
-
+        private fun updateStartTime(task: Task) {
             val totalSeconds = task.timeLeft
             val hours = totalSeconds / 3600
             val minutes = (totalSeconds % 3600) / 60
             val seconds = totalSeconds % 60
 
-            taskTimeText.text = "${task.startTime.format(formatterTime)} - ${task.startTime.plusSeconds(task.timeLeft).format(formatterTime)}"
+            val startTime = task.startTime.format(formatterTime)
+            val endTime = task.startTime.plusSeconds(task.timeLeft).format(formatterTime)
+            taskTimeText.text = context.getString(R.string.task_time_format, startTime, endTime)
 
             taskTimeLeft.text = if (hours > 0) {
                 String.format("%02d:%02d", hours, minutes)
             } else {
-                if (minutes > 0 || seconds > 0){
+                if (minutes > 0 || seconds > 0) {
                     String.format("%02d:%02d", minutes, seconds)
                 } else {
                     "Finished!"
                 }
             }
+        }
 
+        private fun updateRunningState(task: Task) {
             if (task.isRunning) {
                 playButton.setImageResource(R.drawable.ic_pause)
             } else {
                 playButton.setImageResource(R.drawable.ic_play)
             }
+        }
 
+        private fun updateTimeLeft(task: Task) {
             taskProgress.progress = task.duration.minus(task.timeLeft).toInt()
+        }
+
+        private fun updateTaskText(task: Task) {
+            taskTitle.text = task.text
+        }
+
+        private fun updateTaskColor(task: Task) {
+            changeBackgroundColor(task.color, foreground, Variables.BLACK_PERCENTAGE_FRONT, R.drawable.task)
+            changeBackgroundColor(task.color, background, Variables.BLACK_PERCENTAGE_BACK, R.drawable.task_shadow)
+            changeControlColor(task.color, control, R.drawable.task_control)
+        }
+
+        fun updateTask(modification: Task) {
+            updateStartTime(modification)
+            updateRunningState(modification)
+            updateTaskColor(modification)
+            updateTaskText(modification)
+            updateTimeLeft(modification)
         }
     }
 
@@ -270,8 +305,8 @@ class TaskAdapter(
 
     override fun onBindViewHolder(holder: TaskViewHolder, position: Int, payloads: List<Any>) {
         if (payloads.isNotEmpty()) {
-            val task = payloads[0] as Task
-            holder.updateTask(task)
+            val modification = payloads[0] as Task
+            holder.updateTask(modification)
         } else {
             holder.bind(tasks[position])
         }

@@ -6,11 +6,12 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.os.Build
 import android.os.Bundle
+import android.os.Parcelable
 import android.transition.ChangeBounds
 import android.transition.Fade
 import android.transition.TransitionSet
-import android.util.Log
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
@@ -32,13 +33,33 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.random.Random
+import kotlin.time.Duration.Companion.hours
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 
 class CreateTaskActivity : ComponentActivity() {
 
     private var selectedDate = LocalDate.now()
     private var currentTime = LocalDateTime.now()
-    var intervalDays = 0
     private var createdTime = currentTime
+    private var templateTask: Task? = null
+    var intervalDays = 0
+
+    private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
+        else -> @Suppress("DEPRECATION") extras?.getParcelable(key) as? T
+    }
+
+    private fun stopRunningTask(task: Task? = null) {
+        val intent = Intent(this, NotificationService::class.java).apply {
+            action = Variables.ACTION_REMOVE
+            task?.let {
+                putExtra(Variables.TASK, it)
+            }
+            putExtra(Variables.VALUE, 0)
+        }
+        startService(intent)
+    }
 
     @SuppressLint("InflateParams")
     private fun repeatingPopup(checkBoxRepeat: CheckBox, textViewRepeat: TextView){
@@ -154,7 +175,11 @@ class CreateTaskActivity : ComponentActivity() {
         val context = layout.context
         var rowLayout: LinearLayout? = null
         val colorGradient = picker.generateColorGradient()
-        val randomIndex = Random.nextInt(colorGradient.size)
+        var randomIndex = Random.nextInt(colorGradient.size)
+
+        if (templateTask != null){
+            randomIndex = colorGradient.indexOf(templateTask!!.color)
+        }
 
         colorGradient.forEachIndexed { index, color ->
             if (index % 3 == 0) {
@@ -163,8 +188,8 @@ class CreateTaskActivity : ComponentActivity() {
                         LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     )
-                    setPadding(50, 0, 50, 50)  // set padding here
-                    gravity = Gravity.CENTER    // set gravity here
+                    setPadding(50, 0, 50, 50)
+                    gravity = Gravity.CENTER
                     orientation = LinearLayout.HORIZONTAL
                 }
                 layout.addView(rowLayout)
@@ -191,7 +216,6 @@ class CreateTaskActivity : ComponentActivity() {
 
         val innerCircle: View = circleView.findViewById(R.id.inner_circle)
         val outerCircle: View = circleView.findViewById(R.id.outer_circle)
-
 
         val shapeDrawable = ContextCompat.getDrawable(context, R.drawable.circle) as GradientDrawable
         shapeDrawable.setColor(Color.parseColor(picker.darkenColor(picker.lightenColor(color, Variables.WHITE_PERCENTAGE), Variables.BLACK_PERCENTAGE_FRONT))) // set the color
@@ -223,7 +247,6 @@ class CreateTaskActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
 
         super.onCreate(savedInstanceState)
-
         setContentView(R.layout.activity_create_task)
 
         val createTaskButton: Button = findViewById(R.id.createTaskButton)
@@ -242,6 +265,33 @@ class CreateTaskActivity : ComponentActivity() {
         setNumberPickerRange(taskPickerHL, 0, 23)
         setNumberPickerRange(taskPickerML, 0, 5)
         setNumberPickerRange(taskPickerMR, 0, 9)
+
+        if (intent.action == Variables.ACTION_MODIFY) {
+            templateTask = intent.parcelable(Variables.TASK)
+
+            createTaskButton.text = getString(R.string.modify_task)
+
+            titleEditText.setText(templateTask!!.text)
+
+            val hours = templateTask!!.duration / 3600
+            val remainingMinutes = (templateTask!!.duration % 3600) / 60
+            val tensOfMinutes = remainingMinutes / 10
+            val singleMinutes = remainingMinutes % 10
+
+            taskPickerHL.value = hours.toInt()
+            taskPickerML.value = tensOfMinutes.toInt()
+            taskPickerMR.value = singleMinutes.toInt()
+
+            priorityBar.progress = templateTask!!.priority
+
+            if (templateTask!!.fixedTime) {
+                checkBoxHasFixedTime.isChecked = true
+                createdTime = templateTask!!.createdTime
+
+                val formatterTime = DateTimeFormatter.ofPattern("dd/MM HH:mm")
+                textViewHasFixedTime.text = "${createdTime.format(formatterTime)}"
+            }
+        }
 
         val transitionSet = TransitionSet()
         transitionSet.addTransition(ChangeBounds())
@@ -269,41 +319,34 @@ class CreateTaskActivity : ComponentActivity() {
 
         createTaskButton.setOnClickListener {
 
-            //TODO: add time constraints
-
             currentTime = LocalDateTime.now()
 
             val text = titleEditText.text.toString()
-            Log.d("CreateTaskActivity", "Title: $text")
             val duration = Duration.ofMinutes((taskPickerHL.value * 60 + taskPickerML.value * 10 + taskPickerMR.value).toLong())
-            Log.d("CreateTaskActivity", "Duration: $duration")
             val priority = priorityBar.progress
-            Log.d("CreateTaskActivity", "Priority: $priority")
-            Log.d("CreateTaskActivity", "Repeat Days: $intervalDays")
             val fixedTime = checkBoxHasFixedTime.isChecked
-            Log.d("CreateTaskActivity", "Has Fixed Time: $fixedTime")
 
-            Log.d("CreateTaskActivity", "Start time: $createdTime")
+            if (templateTask != null) { stopRunningTask(task = templateTask) }
 
             val task = Task(
-                id = System.currentTimeMillis(),
+                id = templateTask?.id ?: System.currentTimeMillis(),
                 text = text,
-                isTemplate = intervalDays != 0,
+                isTemplate = templateTask?.isTemplate ?: (intervalDays != 0),
                 duration = duration.seconds,
                 priority = priority,
                 intervalDays = intervalDays,
                 fixedTime = fixedTime,
-                createdTime = createdTime,
+                createdTime = templateTask?.createdTime ?: createdTime,
                 startTime = createdTime,
                 timeLeft = duration.seconds,
                 isRunning = false,
                 color = visibleColorCircleHolder.currentColor,
-                isDetailVisible = false,
+                isDetailVisible = templateTask?.isDetailVisible ?: false,
                 status = TaskStatus.REMAINING,
             )
 
             val returnIntent = Intent()
-            returnIntent.putExtra("task", task)
+            returnIntent.putExtra(Variables.TASK, task)
             setResult(Activity.RESULT_OK, returnIntent)
             finish()
         }
