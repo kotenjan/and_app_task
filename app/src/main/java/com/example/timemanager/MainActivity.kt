@@ -127,7 +127,6 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
         clickFirstDay()
 
         taskViewModel.tasksLiveData.observe(this) { refreshedTasks ->
-            println(refreshedTasks)
             taskAdapter.refresh(refreshedTasks)
         }
 

@@ -215,7 +215,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                 Variables.ACTION_MODIFY_TIME -> {
                     currentTask!!.let {
                         val task = getOrCreate(it)
-                        val timeLeft = minOf(it.duration, maxOf(value + task.timeLeft, 0))
+                        val timeLeft = minOf(task.duration, maxOf(value + task.timeLeft, 0))
 
                         task.timeLeft = timeLeft
                         tasks[task] = task

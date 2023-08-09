@@ -345,6 +345,8 @@ class CreateTaskActivity : ComponentActivity() {
                 status = TaskStatus.REMAINING,
             )
 
+            println(task)
+
             val returnIntent = Intent()
             returnIntent.putExtra(Variables.TASK, task)
             setResult(Activity.RESULT_OK, returnIntent)
