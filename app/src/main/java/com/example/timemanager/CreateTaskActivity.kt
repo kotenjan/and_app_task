@@ -40,7 +40,7 @@ class CreateTaskActivity : ComponentActivity() {
     private var currentTime = LocalDateTime.now()
     private var createdTime = currentTime
     private var templateTask: Task? = null
-    var intervalDays = 0
+    private var intervalDays = 0
 
     private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
@@ -334,8 +334,10 @@ class CreateTaskActivity : ComponentActivity() {
                 intervalDays = intervalDays,
                 fixedTime = fixedTime,
                 createdTime = templateTask?.createdTime ?: createdTime,
-                startTime = createdTime,
+                estimatedStartTime = createdTime,
                 timeLeft = duration.seconds,
+                startTime = createdTime,
+                timeLeftOnStart = duration.seconds,
                 isRunning = false,
                 color = visibleColorCircleHolder.currentColor,
                 isDetailVisible = templateTask?.isDetailVisible ?: false,

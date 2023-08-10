@@ -22,8 +22,11 @@ data class Task(
     val createdTime: LocalDateTime,
     val color: String,
     @TypeConverters(Converter::class)
-    var startTime: LocalDateTime, // Assigned during task sorting. The planned start of task
+    var estimatedStartTime: LocalDateTime, // Assigned during task sorting. The planned start of task
     var timeLeft: Long, // The task progress. How much time is left
+    @TypeConverters(Converter::class)
+    var startTime: LocalDateTime, // Helps with accuracy of timeLeft computation
+    var timeLeftOnStart: Long, // Task progress. How much time was left after task start
     var isRunning: Boolean,
     var isDetailVisible: Boolean, // UI
     @TypeConverters(Converter::class)

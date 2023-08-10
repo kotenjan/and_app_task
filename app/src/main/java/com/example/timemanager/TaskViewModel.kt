@@ -14,6 +14,7 @@ import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import kotlin.math.abs
 
 class TaskViewModel(private val application: Application) : AndroidViewModel(application) {
 
@@ -146,6 +147,10 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
+    private fun currentTaskTimeLeft(task: Task): Long {
+        return abs(Duration.between(task.startTime, LocalDateTime.now()).seconds)
+    }
+
     private suspend fun update(action: String, currentTask: Task? = null, newTasks: List<Task>? = null, value: Long = 0, displayDay: LocalDate) {
         updateMutex.withLock {
 
@@ -153,7 +158,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                 Variables.ACTION_TIME_DECREASE -> {
                     tasks.entries.forEach { (_, task) ->
                         if (task.isRunning && task.status == TaskStatus.REMAINING) {
-                            val timeLeft = maxOf(task.timeLeft - 1, 0)
+                            val timeLeft = maxOf(task.timeLeftOnStart - currentTaskTimeLeft(task), 0)
                             lateinit var updatedTask: Task
 
                             if (timeLeft <= 0) {
@@ -203,12 +208,14 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                         val task = getOrCreate(it)
 
                         task.timeLeft = value
+                        task.startTime = LocalDateTime.now().minusSeconds(1)
+                        task.timeLeftOnStart = task.timeLeft
                         tasks[task] = task
 
                         insertDatabaseTask(task)
 
                         if (task.isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = task, value = value)
+                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = task)
                         }
                     }
                 }
@@ -218,12 +225,14 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                         val timeLeft = minOf(task.duration, maxOf(value + task.timeLeft, 0))
 
                         task.timeLeft = timeLeft
+                        task.startTime = LocalDateTime.now().minusSeconds(1)
+                        task.timeLeftOnStart = task.timeLeft
                         tasks[task] = task
 
                         insertDatabaseTask(task)
 
                         if (task.isRunning) {
-                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = task, value = timeLeft)
+                            sendIntentToNotificationService(Variables.ACTION_NOTIFICATION_SET_TIME, task = task)
                         }
                     }
                 }
@@ -241,13 +250,15 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                         }
 
                         task.isRunning = newRunningState
+                        task.startTime = LocalDateTime.now().minusSeconds(1)
+                        task.timeLeftOnStart = task.timeLeft
                         tasks[task] = task
 
                         insertDatabaseTask(task)
 
                         if (task.timeLeft > 0) {
                             if (newRunningState) {
-                                sendIntentToNotificationService(Variables.ACTION_ADD, task, value = task.timeLeft)
+                                sendIntentToNotificationService(Variables.ACTION_ADD, task)
                             } else {
                                 sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task)
                             }
@@ -292,7 +303,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
     private fun sort(tasks: List<Task>, today: LocalDate): List<Task> {
         val currentTime = LocalDateTime.now()
 
-        var startTime = maxOf(currentTime, today.atStartOfDay())
+        var estimatedStartTime = maxOf(currentTime, today.atStartOfDay())
 
         val pause = Duration.ofMinutes(15)
 
@@ -310,24 +321,24 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
             var result: Task? = null
 
             if (nextElementVariable == null && nextElementFixed != null){
-                nextElementFixed.startTime = maxOf(nextElementFixed.createdTime, currentTime, startTime)
+                nextElementFixed.estimatedStartTime = maxOf(nextElementFixed.createdTime, currentTime, estimatedStartTime)
                 result = nextElementFixed
                 nextElementFixed = getNextElement(fixedIterator)
             }
-            else if (nextElementVariable != null && (nextElementFixed == null || startTime.plusSeconds(nextElementVariable.timeLeft).plus(pause) <= nextElementFixed.createdTime)){
-                nextElementVariable.startTime = startTime
+            else if (nextElementVariable != null && (nextElementFixed == null || estimatedStartTime.plusSeconds(nextElementVariable.timeLeft).plus(pause) <= nextElementFixed.createdTime)){
+                nextElementVariable.estimatedStartTime = estimatedStartTime
                 result = nextElementVariable
                 nextElementVariable = getNextElement(variableIterator)
             }
             else if (nextElementFixed != null){
-                nextElementFixed.startTime = maxOf(nextElementFixed.createdTime, currentTime, startTime)
+                nextElementFixed.estimatedStartTime = maxOf(nextElementFixed.createdTime, currentTime, estimatedStartTime)
                 result = nextElementFixed
                 nextElementFixed = getNextElement(fixedIterator)
             }
 
             result?.let {
                 sortedTasks.add(it)
-                startTime = maxOf(it.startTime.plusSeconds(it.timeLeft).plus(pause), startTime)
+                estimatedStartTime = maxOf(it.estimatedStartTime.plusSeconds(it.timeLeft).plus(pause), estimatedStartTime)
             }
         }
         return sortedTasks
@@ -371,7 +382,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
             val addedTasks = generateDayTasks(templateTasks, today).subtract(nonTemplateTasks.toSet()).toList()
             val (currentTasks, followingTasks) = splitTasks(remainingTasks + addedTasks, today)
             val sortedTasks = sort(currentTasks, today)
-            val (tasksToday, tasksTomorrow) = sortedTasks.partition { it.startTime.plusSeconds(it.timeLeft) < today.plusDays(1).atStartOfDay() }
+            val (tasksToday, tasksTomorrow) = sortedTasks.partition { it.estimatedStartTime.plusSeconds(it.timeLeft) < today.plusDays(1).atStartOfDay() }
 
             remainingTasks = tasksTomorrow + followingTasks
 

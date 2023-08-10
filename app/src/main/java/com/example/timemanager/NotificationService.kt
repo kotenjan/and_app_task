@@ -20,9 +20,14 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.time.Duration
+import java.time.LocalDateTime
 import kotlin.coroutines.CoroutineContext
+import kotlin.math.abs
 
 class NotificationService : Service(), CoroutineScope {
+
+    // TODO: Fix timeLeft
 
     private val job = Job()
     override val coroutineContext: CoroutineContext
@@ -55,6 +60,18 @@ class NotificationService : Service(), CoroutineScope {
         val mp = MediaPlayer.create(application, R.raw.finish_sound)
         mp.setOnCompletionListener { mp.release() }
         mp.start()
+
+        val vibrator = application.getSystemService(Vibrator::class.java)
+
+        if (vibrator?.hasVibrator() == true) {
+            val pattern = longArrayOf(0, 200, 100, 200)
+            val effect = VibrationEffect.createWaveform(pattern, -1)
+            vibrator.vibrate(effect)
+        }
+    }
+
+    private fun currentTaskTimeLeft(task: Task): Long {
+        return abs(Duration.between(task.startTime, LocalDateTime.now()).seconds)
     }
 
     private suspend fun decreaseRunningTaskTime() {
@@ -63,9 +80,8 @@ class NotificationService : Service(), CoroutineScope {
 
         while (iterator.hasNext()) {
             val task = iterator.next()
-            task.timeLeft -= 1
+            task.timeLeft = maxOf(task.timeLeftOnStart - currentTaskTimeLeft(task), 0)
             if (task.timeLeft <= 0) {
-
                 notifyTaskFinished()
 
                 taskDao.finishTaskFromNotification(task.id, task.createdTime)
@@ -122,12 +138,13 @@ class NotificationService : Service(), CoroutineScope {
                 when(it.action) {
                     Variables.ACTION_ADD -> {
                         intent.parcelable<Task>(Variables.TASK)!!.let { task ->
-                            task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L)
                             val existingTask = runningTasks.find { instance -> instance == task }
-                            if (existingTask == null) {
-                                runningTasks.add(task)
+                            if (existingTask == null) { runningTasks.add(task) }
+                            existingTask?.let {foundTask ->
+                                foundTask.timeLeft = task.timeLeft
+                                foundTask.startTime = task.startTime
+                                foundTask.timeLeftOnStart = task.timeLeftOnStart
                             }
-                            existingTask?.timeLeft = task.timeLeft
                         }
                     }
                     Variables.ACTION_REMOVE -> {
@@ -148,7 +165,11 @@ class NotificationService : Service(), CoroutineScope {
                     Variables.ACTION_NOTIFICATION_SET_TIME -> {
                         intent.parcelable<Task>(Variables.TASK)!!.let {key ->
                             runningTasks.forEach { task ->
-                                if (key == task) { task.timeLeft = intent.getLongExtra(Variables.VALUE, 0L) }
+                                if (key == task) {
+                                    task.timeLeft = key.timeLeft
+                                    task.startTime = key.startTime
+                                    task.timeLeftOnStart = key.timeLeftOnStart
+                                }
                             }
                         }
                     }
@@ -179,12 +200,18 @@ class NotificationService : Service(), CoroutineScope {
                         val size = runningTasks.size
                         if (size > 0) {
                             runningTaskIndex = (runningTaskIndex + size - 1) % size
+                        } else {
+                            kill()
+                            return
                         }
                     }
                     Variables.ACTION_NOTIFICATION_NEXT -> {
                         val size = runningTasks.size
                         if (size > 0) {
                             runningTaskIndex = (runningTaskIndex + 1) % size
+                        } else {
+                            kill()
+                            return
                         }
                     }
                     else -> throw IllegalArgumentException("Unsupported action: ${it.action}")
@@ -293,8 +320,8 @@ class NotificationService : Service(), CoroutineScope {
             notificationLayout.setTextViewText(R.id.notification_countdown, timeText)
             notificationBigLayout.setTextViewText(R.id.notification_countdown, timeText)
         } else {
-            notificationLayout.setTextViewText(R.id.notification_countdown, "Finished!")
-            notificationBigLayout.setTextViewText(R.id.notification_countdown, "Finished!")
+            notificationLayout.setTextViewText(R.id.notification_countdown, "00:00")
+            notificationBigLayout.setTextViewText(R.id.notification_countdown, "00:00")
         }
 
         if (task?.isRunning == true){

@@ -76,7 +76,7 @@ class TaskAdapter(
             val oldTask = oldTasks[oldItemPosition]
             val newTask = newTasks[newItemPosition]
             return oldTask.timeLeft == newTask.timeLeft &&
-                    oldTask.startTime == newTask.startTime &&
+                    oldTask.estimatedStartTime == newTask.estimatedStartTime &&
                     oldTask.isRunning == newTask.isRunning &&
                     oldTask.color == newTask.color &&
                     oldTask.text == newTask.text
@@ -243,8 +243,8 @@ class TaskAdapter(
             val minutes = (totalSeconds % 3600) / 60
             val seconds = totalSeconds % 60
 
-            val startTime = task.startTime.format(formatterTime)
-            val endTime = task.startTime.plusSeconds(task.timeLeft).format(formatterTime)
+            val startTime = task.estimatedStartTime.format(formatterTime)
+            val endTime = task.estimatedStartTime.plusSeconds(task.timeLeft).format(formatterTime)
             taskTimeText.text = context.getString(R.string.task_time_format, startTime, endTime)
 
             taskTimeLeft.text = if (hours > 0) {
