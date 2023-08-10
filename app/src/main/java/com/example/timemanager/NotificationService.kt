@@ -8,17 +8,14 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.app.PendingIntent
 import android.graphics.Color
-import android.media.AudioManager.STREAM_NOTIFICATION
 import android.media.MediaPlayer
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex

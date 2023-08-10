@@ -99,7 +99,7 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
         val background = buttonDayView.findViewById<LinearLayout>(R.id.background)
 
         val formatterTime = DateTimeFormatter.ofPattern("dd/MM")
-        button.text = "${day.format(formatterTime)}"
+        button.text = day.format(formatterTime)
 
         button.setOnClickListener {
             dayButtonClick(button, background, day)

@@ -33,9 +33,6 @@ import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import kotlin.random.Random
-import kotlin.time.Duration.Companion.hours
-import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Duration.Companion.seconds
 
 class CreateTaskActivity : ComponentActivity() {
 
@@ -96,9 +93,9 @@ class CreateTaskActivity : ComponentActivity() {
                 checkBoxRepeat.isChecked = ok
                 if (ok){
                     if (intervalDays == 1){
-                        textViewRepeat.text = "Every day"
+                        textViewRepeat.text = getString(R.string.every_day)
                     } else {
-                        textViewRepeat.text = "Every $intervalDays days"
+                        textViewRepeat.text = getString(R.string.repeat_interval, intervalDays)
                     }
                 } else{
                     textViewRepeat.text = ""
@@ -159,7 +156,7 @@ class CreateTaskActivity : ComponentActivity() {
             popupWindow.setOnDismissListener {
                 checkBoxHasFixedTime.isChecked = ok
                 if (ok){
-                    textViewHasFixedTime.text = "${createdTime.format(formatterTime)}"
+                    textViewHasFixedTime.text = createdTime.format(formatterTime)
                 } else{
                     textViewHasFixedTime.text = ""
                 }
@@ -289,7 +286,7 @@ class CreateTaskActivity : ComponentActivity() {
                 createdTime = templateTask!!.createdTime
 
                 val formatterTime = DateTimeFormatter.ofPattern("dd/MM HH:mm")
-                textViewHasFixedTime.text = "${createdTime.format(formatterTime)}"
+                textViewHasFixedTime.text = createdTime.format(formatterTime)
             }
         }
 

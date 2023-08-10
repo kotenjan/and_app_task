@@ -7,8 +7,10 @@
     <string name="back">Back</string>
     <string name="default_time">00:00</string>
     <string name="default_title">Task Title</string>
-    <string name="default_time_estimate">HHMM</string>
+    <string name="default_time_estimate">Time</string>
     <string name="task_time_format">%1$s - %2$s</string>
     <string name="modify_task">MODIFY TASK</string>
+    <string name="every_day">Every day</string>
+    <string name="repeat_interval">Every %1$d days</string>
 
 </resources>

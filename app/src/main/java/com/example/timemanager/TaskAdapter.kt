@@ -56,7 +56,7 @@ class TaskAdapter(
 
             while (isActive) {
                 taskViewModel.updateRunningTasks(displayDay)
-                delay.delayToNextSecond(offsetMillis = 0)
+                delay.delayToNextSecond()
             }
         }
     }
