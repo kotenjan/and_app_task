@@ -4,7 +4,6 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import android.app.Application
 import android.content.Intent
-import android.media.MediaPlayer
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +13,7 @@ import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
 class TaskViewModel(private val application: Application) : AndroidViewModel(application) {
@@ -23,19 +23,39 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
     private val updateMutex = Mutex()
     private val tasks: MutableMap<Task, Task> = mutableMapOf()
     private var stoppedRunning = false
+    private val sound: TaskSoundSystem by lazy { TaskSoundSystem(application) }
     val tasksLiveData = MutableLiveData<List<Task>>()
 
     fun getTask(task: Task): Task {
         return tasks[task]!!
     }
 
+    private fun addOldTasks(task: Task, newTasks: MutableList<Task>, newTasksSet: HashSet<Task>) {
+        val targetDay = LocalDate.now()
+        val threshold = minOf(ChronoUnit.DAYS.between(task.createdTime.toLocalDate(), targetDay), Variables.APP_HISTORY_SPAN)
+
+        task.getOldTasks(targetDay, threshold).forEach { oldTask ->
+            if (oldTask !in newTasksSet) {
+                newTasks.add(oldTask)
+            }
+        }
+    }
+
     fun getTasks(displayDay: LocalDate) {
         viewModelScope.launch(Dispatchers.IO) {
 
-            val newTasks = taskDao.getTasks()
+            val newTasks = taskDao.getTasks() as MutableList
+            val newTasksSet = HashSet(newTasks)
+            val currentDate = LocalDate.now()
+
+            newTasks.filter {
+                it.isTemplate && it.createdTime < currentDate.atStartOfDay()
+            }.forEach {
+                task -> addOldTasks(task, newTasks, newTasksSet)
+            }
 
             val tasksToDelete = newTasks.filter {
-                it.status == TaskStatus.FINISHED && it.createdTime < displayDay.minusDays(7).atStartOfDay()
+                it.status == TaskStatus.FINISHED && it.createdTime < currentDate.minusDays(Variables.APP_HISTORY_SPAN).atStartOfDay()
             }
 
             taskDao.delete(tasksToDelete)
@@ -62,20 +82,27 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
     fun addTask(task: Task, displayDay: LocalDate) {
         viewModelScope.launch(Dispatchers.IO) {
+            if (task.isTemplate && task.createdTime < LocalDate.now().atStartOfDay()) {
+                val action = Variables.ACTION_ADD_MULTIPLE
+                val newTasks: MutableList<Task> = mutableListOf()
+                addOldTasks(task, newTasks, hashSetOf())
+                update(action = action, newTasks = newTasks, displayDay = displayDay)
+            }
             val action = Variables.ACTION_ADD
             update(action = action, currentTask = task, displayDay = displayDay)
         }
     }
 
-    private fun addTasks(tasks: List<Task>, displayDay: LocalDate) {
+    private fun addTasks(newTasks: List<Task>, displayDay: LocalDate) {
         viewModelScope.launch(Dispatchers.IO) {
             val action = Variables.ACTION_ADD_MULTIPLE
-            update(action = action, newTasks = tasks, displayDay = displayDay)
+            update(action = action, newTasks = newTasks, displayDay = displayDay)
         }
     }
 
     fun deleteTask(task: Task, displayDay: LocalDate, deleteAll: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
+            sound.notifyTaskFinished()
             val action = Variables.ACTION_REMOVE
             val value = (if (deleteAll) 1 else 0).toLong()
             update(action = action, currentTask = task, displayDay = displayDay, value = value)
@@ -127,12 +154,6 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
             return tasks[task]?.copy() ?: task.copy()
         }
         return task.copy(isTemplate = false)
-    }
-
-    private fun notifyTaskFinished() {
-        val mp = MediaPlayer.create(application, R.raw.finish_sound)
-        mp.setOnCompletionListener { mp.release() }
-        mp.start()
     }
 
     private fun insertDatabaseTask(task: Task) {
@@ -263,7 +284,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                                 sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task)
                             }
                         } else {
-                            notifyTaskFinished()
+                            sound.notifyTaskFinished()
                         }
                     }
                 }
@@ -305,7 +326,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
         var estimatedStartTime = maxOf(currentTime, today.atStartOfDay())
 
-        val pause = Duration.ofMinutes(15)
+        val pause = Duration.ofMinutes(1)
 
         val (variableTasks, fixedTasks) = segregateTasksBasedOnFixedTime(tasks)
 

@@ -126,7 +126,7 @@
                     android:id="@+id/checkBoxRepeat"
                     android:layout_width="wrap_content"
                     android:layout_height="50dp"
-                    android:text="Repeat"
+                    android:text="Repeats"
                     android:textColor="#716f6d"
                     android:theme="@style/CheckBox."
                     android:textStyle="bold"/>

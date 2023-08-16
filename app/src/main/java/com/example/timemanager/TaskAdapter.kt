@@ -51,7 +51,6 @@ class TaskAdapter(
 
     private fun start() {
         launch {
-
             taskViewModel.getTasks(displayDay)
 
             while (isActive) {
@@ -253,7 +252,7 @@ class TaskAdapter(
                 if (minutes > 0 || seconds > 0) {
                     String.format("%02d:%02d", minutes, seconds)
                 } else {
-                    "Finished!"
+                    "00:00"
                 }
             }
         }

@@ -4,6 +4,7 @@ import android.os.Parcelable
 import androidx.room.Entity
 import androidx.room.TypeConverters
 import kotlinx.parcelize.Parcelize
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
@@ -33,19 +34,37 @@ data class Task(
     var status: TaskStatus,
 ): Parcelable {
 
-    fun isOnToday(today: LocalDate): Boolean{
+    fun isOnToday(targetDay: LocalDate): Boolean{
 
-        if (createdTime.isAfter(today.plusDays(1).atStartOfDay())){
+        if (createdTime.isAfter(targetDay.plusDays(1).atStartOfDay())){
             return false
         }
         if (intervalDays == -1){
-            return createdTime.dayOfMonth == today.dayOfMonth
+            return createdTime.dayOfMonth == targetDay.dayOfMonth
         }
         if (intervalDays == 0){
             return createdTime.toLocalDate().isEqual(LocalDate.now())
         }
-        return (ChronoUnit.DAYS.between(createdTime.toLocalDate(), today) % intervalDays) == 0L
+        return (ChronoUnit.DAYS.between(createdTime.toLocalDate(), targetDay) % intervalDays) == 0L
     }
+
+    fun getOldTasks(targetDay: LocalDate, threshold: Long): List<Task> {
+        if (intervalDays < 1) return emptyList()
+
+        val start = ChronoUnit.DAYS.between(createdTime.toLocalDate(), targetDay) % intervalDays
+        val tasks = mutableListOf<Task>()
+
+        for (day in start..threshold step intervalDays.toLong()) {
+            tasks.add(this.copy(
+                createdTime = LocalDateTime.of(targetDay.minusDays(day), createdTime.toLocalTime()),
+                status = TaskStatus.REMAINING,
+                isTemplate = false
+            ))
+        }
+
+        return tasks
+    }
+
 
     private fun compareTask(other: Task): Boolean {
         return (other.id == id) && (other.createdTime == createdTime) && (other.isTemplate == isTemplate)

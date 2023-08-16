@@ -46,6 +46,7 @@ class NotificationService : Service(), CoroutineScope {
     private var runningTaskIndex = 0
     private val picker = ColorPicker()
     private val updateMutex = Mutex()
+    private val sound: TaskSoundSystem by lazy { TaskSoundSystem(application) }
 
     private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
@@ -54,20 +55,6 @@ class NotificationService : Service(), CoroutineScope {
 
     init {
         startUpdate()
-    }
-
-    private fun notifyTaskFinished() {
-        val mp = MediaPlayer.create(application, R.raw.finish_sound)
-        mp.setOnCompletionListener { mp.release() }
-        mp.start()
-
-        val vibrator = application.getSystemService(Vibrator::class.java)
-
-        if (vibrator?.hasVibrator() == true) {
-            val pattern = longArrayOf(0, 200, 100, 200)
-            val effect = VibrationEffect.createWaveform(pattern, -1)
-            vibrator.vibrate(effect)
-        }
     }
 
     private fun currentTaskTimeLeft(task: Task): Long {
@@ -82,7 +69,7 @@ class NotificationService : Service(), CoroutineScope {
             val task = iterator.next()
             task.timeLeft = maxOf(task.timeLeftOnStart - currentTaskTimeLeft(task), 0)
             if (task.timeLeft <= 0) {
-                notifyTaskFinished()
+                sound.notifyTaskFinished()
 
                 taskDao.finishTaskFromNotification(task.id, task.createdTime)
                 iterator.remove()

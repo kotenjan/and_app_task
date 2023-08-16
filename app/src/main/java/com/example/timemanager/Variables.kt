@@ -27,4 +27,5 @@ object Variables {
     const val BLACK_PERCENTAGE_BACK = 55
     const val COLOR_STEP = 164
     const val COLOR_START = 45
+    const val APP_HISTORY_SPAN = 7L
 }

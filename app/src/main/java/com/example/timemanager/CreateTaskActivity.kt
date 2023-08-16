@@ -41,6 +41,7 @@ class CreateTaskActivity : ComponentActivity() {
     private var createdTime = currentTime
     private var templateTask: Task? = null
     private var intervalDays = 0
+    private var hasStartTime = false
 
     private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
@@ -110,7 +111,8 @@ class CreateTaskActivity : ComponentActivity() {
     @SuppressLint("InflateParams")
     private fun fixedTimePopup(checkBoxHasFixedTime: CheckBox, textViewHasFixedTime: TextView){
         if (checkBoxHasFixedTime.isChecked) {
-            val formatterTime = DateTimeFormatter.ofPattern("dd/MM HH:mm")
+            val formatterDateTime = DateTimeFormatter.ofPattern("dd/MM HH:mm")
+            val formatterDate = DateTimeFormatter.ofPattern("dd/MM")
             val inflater: LayoutInflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
             val popupView = inflater.inflate(R.layout.datetime_popup, null, false)
             val width = LinearLayout.LayoutParams.WRAP_CONTENT
@@ -123,6 +125,8 @@ class CreateTaskActivity : ComponentActivity() {
             val fixedCalendarView = popupView.findViewById<CalendarView>(R.id.calendarView)
             val cancelButton: Button = popupView.findViewById(R.id.cancelButton)
             val okButton: Button = popupView.findViewById(R.id.okButton)
+            val checkBoxHasStartingTime: CheckBox = popupView.findViewById(R.id.checkBoxHasStartingTime)
+            val timePickerLayout: LinearLayout = popupView.findViewById(R.id.time_picker_layout)
 
             setNumberPickerRange(fixedPickerHL, 0, 23)
             setNumberPickerRange(fixedPickerML, 0, 5)
@@ -132,13 +136,22 @@ class CreateTaskActivity : ComponentActivity() {
             fixedPickerML.value = createdTime.minute / 10
             fixedPickerMR.value = createdTime.minute % 10
 
-            fixedCalendarView.minDate = System.currentTimeMillis()
+            //fixedCalendarView.minDate = System.currentTimeMillis()
 
             fixedCalendarView.date = selectedDate.atStartOfDay().atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
 
             popupWindow.showAtLocation(checkBoxHasFixedTime, Gravity.CENTER, 0, 0)
 
             var ok = false
+
+            checkBoxHasStartingTime.setOnCheckedChangeListener {_, checked ->
+                hasStartTime = checked
+                timePickerLayout.visibility = if (hasStartTime) View.VISIBLE else View.GONE
+            }
+
+            if (templateTask?.fixedTime == true || hasStartTime) {
+                checkBoxHasStartingTime.isChecked = true
+            }
 
             fixedCalendarView.setOnDateChangeListener { _, year, month, dayOfMonth ->
                 selectedDate = LocalDate.of(year, month + 1, dayOfMonth)
@@ -156,7 +169,7 @@ class CreateTaskActivity : ComponentActivity() {
             popupWindow.setOnDismissListener {
                 checkBoxHasFixedTime.isChecked = ok
                 if (ok){
-                    textViewHasFixedTime.text = createdTime.format(formatterTime)
+                    textViewHasFixedTime.text = createdTime.format(if (hasStartTime) formatterDateTime else formatterDate)
                 } else{
                     textViewHasFixedTime.text = ""
                 }
@@ -207,7 +220,6 @@ class CreateTaskActivity : ComponentActivity() {
     ): View {
         val circleView = LayoutInflater.from(context).inflate(R.layout.circle, null)
 
-        // set layout params to have weight 1
         val params = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         circleView.layoutParams = params
 
@@ -253,8 +265,8 @@ class CreateTaskActivity : ComponentActivity() {
         val titleEditText: EditText = findViewById(R.id.taskTitleEditText)
         val priorityBar: SeekBar = findViewById(R.id.priorityBar)
         val checkBoxRepeat: CheckBox = findViewById(R.id.checkBoxRepeat)
-        val checkBoxHasFixedTime: CheckBox = findViewById(R.id.checkBoxHasFixedTime)
         val textViewRepeat: TextView = findViewById(R.id.textViewRepeat)
+        val checkBoxHasFixedTime: CheckBox = findViewById(R.id.checkBoxHasFixedTime)
         val textViewHasFixedTime: TextView = findViewById(R.id.textViewHasFixedTime)
         val colorPickerLayout: LinearLayout = findViewById(R.id.color_picker_layout)
         val visibleColorCircleHolder = VisibleColorCircleHolder(null, "#3094F0")
@@ -321,7 +333,7 @@ class CreateTaskActivity : ComponentActivity() {
             val text = titleEditText.text.toString()
             val duration = Duration.ofMinutes((taskPickerHL.value * 60 + taskPickerML.value * 10 + taskPickerMR.value).toLong())
             val priority = priorityBar.progress
-            val fixedTime = checkBoxHasFixedTime.isChecked
+            val fixedTime = checkBoxHasFixedTime.isChecked && hasStartTime
 
             if (templateTask != null) { stopRunningTask(task = templateTask) }
 
@@ -343,8 +355,6 @@ class CreateTaskActivity : ComponentActivity() {
                 isDetailVisible = templateTask?.isDetailVisible ?: false,
                 status = TaskStatus.REMAINING,
             )
-
-            println(task)
 
             val returnIntent = Intent()
             returnIntent.putExtra(Variables.TASK, task)
