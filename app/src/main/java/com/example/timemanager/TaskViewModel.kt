@@ -376,7 +376,8 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
     private fun getSortedIterators(variableTasks: List<Task>, fixedTasks: List<Task>, today: LocalDate): Pair<Iterator<Task>, Iterator<Task>> {
         val variableIterator = variableTasks.sortedWith(
             compareByDescending<Task> {
-                it.priority + Duration.between(it.createdTime.toLocalDate().atStartOfDay(), today.atStartOfDay()).toDays()
+                val days = Duration.between(it.createdTime.toLocalDate().atStartOfDay(), today.atStartOfDay()).toDays()
+                if (it.priority < 10) minOf(9, it.priority + days) else it.priority + days
             }.thenBy { it.createdTime }.thenBy { it.id }
         ).iterator()
         val fixedIterator = fixedTasks.sortedWith(compareBy { it.createdTime }).iterator()
