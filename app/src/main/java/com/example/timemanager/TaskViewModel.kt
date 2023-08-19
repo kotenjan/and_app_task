@@ -41,7 +41,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
-    fun getTasks(displayDay: LocalDate) {
+    fun getTasks(displayDay: LocalDate? = null) {
         viewModelScope.launch(Dispatchers.IO) {
 
             val newTasks = taskDao.getTasks() as MutableList
@@ -80,7 +80,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
-    fun addTask(task: Task, displayDay: LocalDate) {
+    fun addTask(task: Task, displayDay: LocalDate? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             if (task.isTemplate && task.createdTime < LocalDate.now().atStartOfDay()) {
                 val action = Variables.ACTION_ADD_MULTIPLE
@@ -93,7 +93,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
-    private fun addTasks(newTasks: List<Task>, displayDay: LocalDate) {
+    private fun addTasks(newTasks: List<Task>, displayDay: LocalDate?) {
         viewModelScope.launch(Dispatchers.IO) {
             val action = Variables.ACTION_ADD_MULTIPLE
             update(action = action, newTasks = newTasks, displayDay = displayDay)
@@ -131,14 +131,14 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
-    fun setTime(task: Task, value: Long, displayDay: LocalDate) {
+    fun setTime(task: Task, value: Long, displayDay: LocalDate? = null) {
         viewModelScope.launch(Dispatchers.IO) {
             val action = Variables.ACTION_SET_TIME
             update(action = action, currentTask = task, value = value, displayDay = displayDay)
         }
     }
 
-    fun modifyRunningState(task: Task, displayDay: LocalDate, fromSeekBar: Boolean = false) {
+    fun modifyRunningState(task: Task, displayDay: LocalDate? = null, fromSeekBar: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val action = Variables.ACTION_SET_RUNNING_STATE
             update(action = action, currentTask = task, displayDay = displayDay, value = if (fromSeekBar) 1L else 0L)
@@ -172,7 +172,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         return abs(Duration.between(task.startTime, LocalDateTime.now()).seconds)
     }
 
-    private suspend fun update(action: String, currentTask: Task? = null, newTasks: List<Task>? = null, value: Long = 0, displayDay: LocalDate) {
+    private suspend fun update(action: String, currentTask: Task? = null, newTasks: List<Task>? = null, value: Long = 0, displayDay: LocalDate? = null) {
         updateMutex.withLock {
 
             when(action) {
@@ -300,10 +300,16 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                 else -> throw IllegalArgumentException("Unsupported action: $action")
             }
 
-            val sortedTasks = getSortedTasksForDay(tasks.values.toSet(), LocalDate.now(), displayDay)
-
-            withContext(Dispatchers.Main){
-                tasksLiveData.value = sortedTasks
+            if (displayDay != null){
+                val sortedTasks = getSortedTasksForDay(tasks.values.toSet(), LocalDate.now(), displayDay)
+                withContext(Dispatchers.Main){
+                    tasksLiveData.value = sortedTasks
+                }
+            } else {
+                val finishedTasks = tasks.values.filter { it.status == TaskStatus.FINISHED }
+                withContext(Dispatchers.Main){
+                    tasksLiveData.value = finishedTasks
+                }
             }
         }
     }

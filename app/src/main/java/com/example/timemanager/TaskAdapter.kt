@@ -27,7 +27,7 @@ import java.time.format.DateTimeFormatter
 class TaskAdapter(
     private val context: Context,
     private val taskViewModel: TaskViewModel,
-    private val displayDay: LocalDate,
+    private val displayDay: LocalDate? = null,
     private val modifyCallback: TaskModifyCallback
 ) : RecyclerView.Adapter<TaskAdapter.TaskViewHolder>(), CoroutineScope {
 
@@ -53,9 +53,11 @@ class TaskAdapter(
         launch {
             taskViewModel.getTasks(displayDay)
 
-            while (isActive) {
-                taskViewModel.updateRunningTasks(displayDay)
-                delay.delayToNextSecond()
+            if (displayDay != null){
+                while (isActive) {
+                    taskViewModel.updateRunningTasks(displayDay)
+                    delay.delayToNextSecond()
+                }
             }
         }
     }
@@ -186,34 +188,36 @@ class TaskAdapter(
             taskProgress.max = task.duration.toInt()
             taskProgress.progress = task.duration.minus(task.timeLeft).toInt()
 
-            taskLayout.setOnClickListener {
-                task.isDetailVisible = !task.isDetailVisible
-                setDetail(task)
-                taskViewModel.setTaskDetail(task, displayDay, task.isDetailVisible)
-            }
+            if (displayDay != null) {
+                taskLayout.setOnClickListener {
+                    task.isDetailVisible = !task.isDetailVisible
+                    setDetail(task)
+                    taskViewModel.setTaskDetail(task, displayDay, task.isDetailVisible)
+                }
 
-            backButton.setOnClickListener {
-                taskViewModel.modifyTime(task, 30, displayDay)
-            }
+                backButton.setOnClickListener {
+                    taskViewModel.modifyTime(task, 30, displayDay)
+                }
 
-            forwardButton.setOnClickListener {
-                taskViewModel.modifyTime(task, -30, displayDay)
-            }
+                forwardButton.setOnClickListener {
+                    taskViewModel.modifyTime(task, -30, displayDay)
+                }
 
-            playButton.setOnClickListener {
-                taskViewModel.modifyRunningState(task, displayDay)
-            }
+                playButton.setOnClickListener {
+                    taskViewModel.modifyRunningState(task, displayDay)
+                }
 
-            finishButton.setOnClickListener{
-                taskViewModel.deleteTask(task, displayDay, false)
-            }
+                finishButton.setOnClickListener{
+                    taskViewModel.deleteTask(task, displayDay, false)
+                }
 
-            modifyButton.setOnClickListener {
-                modifyCallback.onModifyTask(taskViewModel.getTask(task))
-            }
+                modifyButton.setOnClickListener {
+                    modifyCallback.onModifyTask(taskViewModel.getTask(task))
+                }
 
-            deleteButton.setOnClickListener{
-                taskViewModel.deleteTask(task, displayDay, true)
+                deleteButton.setOnClickListener{
+                    taskViewModel.deleteTask(task, displayDay, true)
+                }
             }
 
             taskProgress.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {

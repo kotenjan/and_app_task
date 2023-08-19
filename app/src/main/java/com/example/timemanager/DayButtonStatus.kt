@@ -1,4 +1,7 @@
 package com.example.timemanager
 
-class DayButtonStatus {
+enum class DayButtonStatus {
+    DAY,
+    FINISHED,
+    SETTINGS,
 }
