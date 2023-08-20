@@ -8,6 +8,8 @@ import android.content.IntentFilter
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.Parcelable
 import android.view.LayoutInflater
 import android.view.View
@@ -30,8 +32,28 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
     private lateinit var taskViewModel: TaskViewModel
     private lateinit var taskAdapter: TaskAdapter
     private lateinit var selectedViewButton: DayButton
+    private lateinit var oldestDate: LocalDate
+    private lateinit var newestDate: LocalDate
     private var displayDay: LocalDate? = null
     private val dayButtonMap: MutableMap<LocalDate, DayButton> = mutableMapOf()
+    private val handler = Handler(Looper.getMainLooper())
+
+    private val runnable = object : Runnable {
+        override fun run() {
+            removeLastButtonForDate()
+            handler.postDelayed(this, 10_000)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        handler.post(runnable)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        handler.removeCallbacks(runnable)
+    }
 
     private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
@@ -94,11 +116,15 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
     }
 
     private fun addButtonForDate(day: LocalDate){
+
+        newestDate = if (::newestDate.isInitialized) { maxOf(newestDate, day) } else { day }
+        oldestDate = if (::oldestDate.isInitialized) { minOf(oldestDate, day) } else { day }
+
         val buttonDayView = LayoutInflater.from(this).inflate(R.layout.button_day, dayLayout, false)
         val button = buttonDayView.findViewById<TextView>(R.id.dayButton)
         val background = buttonDayView.findViewById<LinearLayout>(R.id.background)
 
-        val formatterTime = DateTimeFormatter.ofPattern("dd/MM")
+        val formatterTime = DateTimeFormatter.ofPattern("E dd/MM")
         button.text = day.format(formatterTime)
 
         button.setOnClickListener {
@@ -106,13 +132,28 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
         }
 
         dayButtonMap[day] = DayButton(button, background)
-        dayLayout.addView(buttonDayView)
+        dayLayout.addView(buttonDayView, dayLayout.childCount - 1)
     }
 
-    fun removeButtonForDate(day: LocalDate) {
-        dayButtonMap[day]?.let { info ->
-            dayLayout.removeView(info.button.parent as View)
-            dayButtonMap.remove(day)
+    private fun removeLastButtonForDate() {
+
+        val newOldestDate = LocalDate.now()
+
+        while (newOldestDate > oldestDate) {
+            val day = oldestDate
+
+            if (displayDay == oldestDate) {
+                dayButtonClick(newOldestDate)
+            }
+
+            dayButtonMap[day]?.let { info ->
+                dayLayout.removeView(info.button.parent as View)
+                dayButtonMap.remove(day)
+            }
+
+            oldestDate = newOldestDate
+
+            addButtonForDate(newestDate.plusDays(1))
         }
     }
 
@@ -123,10 +164,23 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
 
         val finishedButton = DayButton(button, background)
 
-        button.text = "FINISHED"
+        button.text = getString(R.string.finished)
 
         button.setOnClickListener {
             finishedButtonClick(finishedButton)
+        }
+
+        dayLayout.addView(buttonFinishedView)
+    }
+
+    private fun addButtonForMoreDays(){
+        val buttonFinishedView = LayoutInflater.from(this).inflate(R.layout.button_day, dayLayout, false)
+        val button = buttonFinishedView.findViewById<TextView>(R.id.dayButton)
+
+        button.text = getString(R.string.add_more)
+
+        button.setOnClickListener {
+            addButtonForDate(newestDate.plusDays(1))
         }
 
         dayLayout.addView(buttonFinishedView)
@@ -144,6 +198,7 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
         dayLayout = findViewById(R.id.dayLayout)
 
         addButtonForFinishedTasks()
+        addButtonForMoreDays()
 
         for (i in 0 until 8){
             addButtonForDate(currentDate.plusDays(i.toLong()))

@@ -100,7 +100,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
-    fun deleteTask(task: Task, displayDay: LocalDate, deleteAll: Boolean) {
+    fun deleteTask(task: Task, displayDay: LocalDate?, deleteAll: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
             sound.notifyTaskFinished()
             val action = Variables.ACTION_REMOVE

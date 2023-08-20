@@ -12,5 +12,7 @@
     <string name="modify_task">MODIFY TASK</string>
     <string name="every_day">Every day</string>
     <string name="repeat_interval">Every %1$d days</string>
+    <string name="finished">FINISHED</string>
+    <string name="add_more">MORE...</string>
 
 </resources>

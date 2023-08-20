@@ -11,6 +11,7 @@ import android.view.animation.Animation
 import android.view.animation.Transformation
 import android.widget.ImageButton
 import android.widget.LinearLayout
+import android.widget.RelativeLayout
 import android.widget.SeekBar
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -109,6 +110,7 @@ class TaskAdapter(
         private val foreground: LinearLayout = view.findViewById(R.id.foreground)
         private val background: LinearLayout = view.findViewById(R.id.background)
         private val control: LinearLayout = view.findViewById(R.id.control)
+        private val progression: RelativeLayout = view.findViewById(R.id.progress_layout)
         private val picker: ColorPicker = ColorPicker()
 
         private fun expand(view: View) {
@@ -188,7 +190,22 @@ class TaskAdapter(
             taskProgress.max = task.duration.toInt()
             taskProgress.progress = task.duration.minus(task.timeLeft).toInt()
 
-            if (displayDay != null) {
+            deleteButton.setOnClickListener{
+                taskViewModel.deleteTask(task, displayDay, true)
+            }
+
+            if (displayDay == null) {
+                finishButton.setImageResource(R.drawable.ic_back_arrow)
+                control.visibility = View.GONE
+                progression.visibility = View.GONE
+                modifyButton.visibility = View.GONE
+                taskTimeText.visibility = View.GONE
+
+                finishButton.setOnClickListener{
+                    taskViewModel.addTask(task.copy(timeLeft = task.duration, status = TaskStatus.REMAINING), displayDay)
+                }
+            } else {
+
                 taskLayout.setOnClickListener {
                     task.isDetailVisible = !task.isDetailVisible
                     setDetail(task)
@@ -213,10 +230,6 @@ class TaskAdapter(
 
                 modifyButton.setOnClickListener {
                     modifyCallback.onModifyTask(taskViewModel.getTask(task))
-                }
-
-                deleteButton.setOnClickListener{
-                    taskViewModel.deleteTask(task, displayDay, true)
                 }
             }
 
