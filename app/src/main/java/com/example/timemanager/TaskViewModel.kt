@@ -3,6 +3,7 @@ package com.example.timemanager
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.launch
 import android.app.Application
+import android.content.Context
 import android.content.Intent
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
@@ -13,6 +14,7 @@ import kotlinx.coroutines.withContext
 import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.time.temporal.ChronoUnit
 import kotlin.math.abs
 
@@ -24,10 +26,24 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
     private val tasks: MutableMap<Task, Task> = mutableMapOf()
     private var stoppedRunning = false
     private val sound: TaskSoundSystem by lazy { TaskSoundSystem(application) }
+    private val sharedPreferences by lazy { application.getSharedPreferences("TaskTimeRange", Context.MODE_PRIVATE) }
+    private var from: LocalTime = LocalTime.parse(sharedPreferences.getString("from", "00:00:00"))
+    private var to: LocalTime = LocalTime.parse(sharedPreferences.getString("to", "23:59:00"))
     val tasksLiveData = MutableLiveData<List<Task>>()
+
+    private fun saveTaskTimeRange() {
+        val editor = sharedPreferences.edit()
+        editor.putString("from", from.toString())
+        editor.putString("to", to.toString())
+        editor.apply()
+    }
 
     fun getTask(task: Task): Task {
         return tasks[task]!!
+    }
+
+    fun getTaskTimeRange(): Pair<LocalTime, LocalTime> {
+        return Pair(from, to)
     }
 
     private fun addOldTasks(task: Task, newTasks: MutableList<Task>, newTasksSet: HashSet<Task>) {
@@ -88,7 +104,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                 addOldTasks(task, newTasks, hashSetOf())
                 update(action = action, newTasks = newTasks, displayDay = displayDay)
             }
-            val action = Variables.ACTION_ADD
+            val action = Variables.ACTION_CREATE
             update(action = action, currentTask = task, displayDay = displayDay)
         }
     }
@@ -102,7 +118,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
     fun deleteTask(task: Task, displayDay: LocalDate?, deleteAll: Boolean) {
         viewModelScope.launch(Dispatchers.IO) {
-            sound.notifyTaskFinished()
+            if (!deleteAll) { sound.notifyTaskFinished() }
             val action = Variables.ACTION_REMOVE
             val value = (if (deleteAll) 1 else 0).toLong()
             update(action = action, currentTask = task, displayDay = displayDay, value = value)
@@ -145,6 +161,14 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         }
     }
 
+    fun modifyTaskTimeRange(newFrom: LocalTime, newTo: LocalTime, displayDay: LocalDate? = null) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val action = Variables.ACTION_TASK_TIME_RANGE
+            update(action = action, newFrom = newFrom, newTo = newTo, displayDay = displayDay)
+            saveTaskTimeRange()
+        }
+    }
+
     private fun dateAtTime(date: LocalDate, dateTime: LocalDateTime): LocalDateTime {
         return date.atTime(dateTime.toLocalTime())
     }
@@ -172,7 +196,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
         return abs(Duration.between(task.startTime, LocalDateTime.now()).seconds)
     }
 
-    private suspend fun update(action: String, currentTask: Task? = null, newTasks: List<Task>? = null, value: Long = 0, displayDay: LocalDate? = null) {
+    private suspend fun update(action: String, currentTask: Task? = null, newTasks: List<Task>? = null, value: Long = 0, displayDay: LocalDate? = null, newFrom: LocalTime? = null, newTo: LocalTime? = null) {
         updateMutex.withLock {
 
             when(action) {
@@ -193,7 +217,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
                         }
                     }
                 }
-                Variables.ACTION_ADD -> {
+                Variables.ACTION_CREATE -> {
                     currentTask!!.let {task ->
                         tasks[task] = task
                         insertDatabaseTask(task)
@@ -279,7 +303,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
                         if (task.timeLeft > 0) {
                             if (newRunningState) {
-                                sendIntentToNotificationService(Variables.ACTION_ADD, task)
+                                sendIntentToNotificationService(Variables.ACTION_CREATE, task)
                             } else {
                                 sendIntentToNotificationService(Variables.ACTION_REMOVE, task = task)
                             }
@@ -296,6 +320,10 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
 
                         insertDatabaseTask(task)
                     }
+                }
+                Variables.ACTION_TASK_TIME_RANGE -> {
+                    from = newFrom!!
+                    to = newTo!!
                 }
                 else -> throw IllegalArgumentException("Unsupported action: $action")
             }
@@ -330,7 +358,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
     private fun sort(tasks: List<Task>, today: LocalDate): List<Task> {
         val currentTime = LocalDateTime.now()
 
-        var estimatedStartTime = maxOf(currentTime, today.atStartOfDay())
+        var estimatedStartTime = maxOf(currentTime, today.atTime(from))
 
         val pause = Duration.ofMinutes(1)
 
@@ -410,7 +438,7 @@ class TaskViewModel(private val application: Application) : AndroidViewModel(app
             val addedTasks = generateDayTasks(templateTasks, today).subtract(nonTemplateTasks.toSet()).toList()
             val (currentTasks, followingTasks) = splitTasks(remainingTasks + addedTasks, today)
             val sortedTasks = sort(currentTasks, today)
-            val (tasksToday, tasksTomorrow) = sortedTasks.partition { it.estimatedStartTime.plusSeconds(it.timeLeft) < today.plusDays(1).atStartOfDay() }
+            val (tasksToday, tasksTomorrow) = sortedTasks.partition { it.estimatedStartTime.plusSeconds(it.timeLeft) < today.atTime(to) }
 
             remainingTasks = tasksTomorrow + followingTasks
 

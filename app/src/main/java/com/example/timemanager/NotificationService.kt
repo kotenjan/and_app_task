@@ -8,7 +8,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import android.app.PendingIntent
 import android.graphics.Color
-import android.media.MediaPlayer
 import android.view.View
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -123,7 +122,7 @@ class NotificationService : Service(), CoroutineScope {
         updateMutex.withLock {
             intent?.let {
                 when(it.action) {
-                    Variables.ACTION_ADD -> {
+                    Variables.ACTION_CREATE -> {
                         intent.parcelable<Task>(Variables.TASK)!!.let { task ->
                             val existingTask = runningTasks.find { instance -> instance == task }
                             if (existingTask == null) { runningTasks.add(task) }

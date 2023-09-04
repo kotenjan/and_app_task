@@ -102,6 +102,7 @@ class TaskAdapter(
         private val playButton: ImageButton = view.findViewById(R.id.play)
         private val finishButton: ImageButton = view.findViewById(R.id.finish)
         private val modifyButton: ImageButton = view.findViewById(R.id.modify)
+        private val copyButton: ImageButton = view.findViewById(R.id.copy)
         private val deleteButton: ImageButton = view.findViewById(R.id.delete)
         private val forwardButton: ImageButton = view.findViewById(R.id.forward)
         private val taskTitle = view.findViewById<TextView>(R.id.title)
@@ -198,6 +199,7 @@ class TaskAdapter(
                 finishButton.setImageResource(R.drawable.ic_back_arrow)
                 control.visibility = View.GONE
                 progression.visibility = View.GONE
+                copyButton.visibility = View.GONE
                 modifyButton.visibility = View.GONE
                 taskTimeText.visibility = View.GONE
 
@@ -230,6 +232,10 @@ class TaskAdapter(
 
                 modifyButton.setOnClickListener {
                     modifyCallback.onModifyTask(taskViewModel.getTask(task))
+                }
+
+                copyButton.setOnClickListener {
+                    modifyCallback.onCopyTask(taskViewModel.getTask(task))
                 }
             }
 

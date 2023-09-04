@@ -5,10 +5,12 @@ object Variables {
     const val MAIN_ACTIVITY_INTENT = "com.example.app.MAIN_ACTIVITY_INTENT"
     const val ACTION_NAME = "com.example.app.INTENT_TYPE"
     const val TASK = "com.example.app.TASK"
+    const val ID = "com.example.app.ID"
     const val ACTION_MODIFY = "com.example.app.ACTION_MODIFY_TASK"
     const val ACTION_START = "com.example.app.ACTION_START"
     const val ACTION_SET_DETAIL = "com.example.app.ACTION_SET_DETAIL"
     const val ACTION_TIME_DECREASE = "com.example.app.ACTION_TIME_DECREASE"
+    const val ACTION_CREATE = "com.example.app.ACTION_CREATE"
     const val ACTION_ADD = "com.example.app.ACTION_ADD"
     const val ACTION_ADD_MULTIPLE = "com.example.app.ACTION_ADD_MULTIPLE"
     const val ACTION_REMOVE = "com.example.app.ACTION_REMOVE"
@@ -21,11 +23,12 @@ object Variables {
     const val ACTION_NOTIFICATION_PREVIOUS = "com.example.app.ACTION_PREVIOUS"
     const val ACTION_NOTIFICATION_NEXT = "com.example.app.ACTION_NEXT"
     const val ACTION_NOTIFICATION_SET_TIME = "com.example.app.ACTION_SET_TIME"
-    const val WHITE_PERCENTAGE = 26
-    const val BLACK_PERCENTAGE_FRONT = 17
+    const val ACTION_TASK_TIME_RANGE = "com.example.app.ACTION_MODIFY_TASK_RANGE"
+    const val WHITE_PERCENTAGE = 32
+    const val BLACK_PERCENTAGE_FRONT = 22
     const val BLACK_PERCENTAGE_CONTROL = 32
     const val BLACK_PERCENTAGE_BACK = 55
-    const val COLOR_STEP = 164
-    const val COLOR_START = 45
+    const val COLOR_STEP = 110
+    const val COLOR_START = 60
     const val APP_HISTORY_SPAN = 7L
 }

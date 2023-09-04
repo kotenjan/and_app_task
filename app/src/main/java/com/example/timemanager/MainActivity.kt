@@ -1,5 +1,6 @@
 package com.example.timemanager
 
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -11,10 +12,14 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.Parcelable
+import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.widget.Button
+import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.NumberPicker
+import android.widget.PopupWindow
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
@@ -22,11 +27,13 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
 class MainActivity : ComponentActivity(), TaskModifyCallback {
 
     private lateinit var addButton: Button
+    private lateinit var settingsButton: ImageView
     private lateinit var taskRecyclerView: RecyclerView
     private lateinit var dayLayout: LinearLayout
     private lateinit var taskViewModel: TaskViewModel
@@ -58,6 +65,54 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
     private inline fun <reified T : Parcelable> Intent.parcelable(key: String): T? = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> extras?.getParcelable(key, T::class.java)
         else -> @Suppress("DEPRECATION") extras?.getParcelable(key) as? T
+    }
+
+    private fun setNumberPickerRange(picker: NumberPicker, low: Int, high: Int){
+        picker.minValue = low
+        picker.maxValue = high
+    }
+
+    @SuppressLint("InflateParams")
+    private fun settingsPopup(){
+
+        val inflater: LayoutInflater = getSystemService(Context.LAYOUT_INFLATER_SERVICE) as LayoutInflater
+        val popupView = inflater.inflate(R.layout.settings_popup, null, false)
+        val width = LinearLayout.LayoutParams.WRAP_CONTENT
+        val height = LinearLayout.LayoutParams.WRAP_CONTENT
+        val focusable = true
+        val popupWindow = PopupWindow(popupView, width, height, focusable)
+
+        val from: NumberPicker = popupView.findViewById(R.id.from)
+        val to: NumberPicker = popupView.findViewById(R.id.to)
+
+        setNumberPickerRange(from, 0, 22)
+        setNumberPickerRange(to, 2, 24)
+
+        taskViewModel.getTaskTimeRange().let { (fromValue, toValue) ->
+            println(toValue)
+            from.value = fromValue.hour
+            if (toValue.minute > 0) {
+                to.value = 24
+            } else {
+                to.value = toValue.hour
+            }
+        }
+
+        from.setOnValueChangedListener { _, _, newVal ->
+            from.value = maxOf(0, minOf(to.value - 2, newVal))
+        }
+
+        to.setOnValueChangedListener { _, _, newVal ->
+            to.value = minOf(24, maxOf(from.value + 2, newVal))
+        }
+
+        popupWindow.showAtLocation(dayLayout, Gravity.CENTER, 0, 0)
+
+        popupWindow.setOnDismissListener {
+            val newFrom = LocalTime.of(from.value, 0)
+            val newTo = if (to.value < 24) LocalTime.of(to.value, 0) else LocalTime.of(23, 59, 59)
+            taskViewModel.modifyTaskTimeRange(newFrom, newTo, displayDay)
+        }
     }
 
     private val notificationReceiver = object : BroadcastReceiver() {
@@ -132,7 +187,7 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
         }
 
         dayButtonMap[day] = DayButton(button, background)
-        dayLayout.addView(buttonDayView, dayLayout.childCount - 1)
+        dayLayout.addView(buttonDayView, dayLayout.childCount - 2)
     }
 
     private fun removeLastButtonForDate() {
@@ -170,20 +225,22 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
             finishedButtonClick(finishedButton)
         }
 
-        dayLayout.addView(buttonFinishedView)
+        dayLayout.addView(buttonFinishedView, dayLayout.childCount - 1)
     }
 
     private fun addButtonForMoreDays(){
-        val buttonFinishedView = LayoutInflater.from(this).inflate(R.layout.button_day, dayLayout, false)
-        val button = buttonFinishedView.findViewById<TextView>(R.id.dayButton)
+        val buttonMoreView = LayoutInflater.from(this).inflate(R.layout.button_day, dayLayout, false)
+        val button = buttonMoreView.findViewById<TextView>(R.id.dayButton)
 
         button.text = getString(R.string.add_more)
 
         button.setOnClickListener {
-            addButtonForDate(newestDate.plusDays(1))
+            for (i in 0..6) {
+                addButtonForDate(newestDate.plusDays(1))
+            }
         }
 
-        dayLayout.addView(buttonFinishedView)
+        dayLayout.addView(buttonMoreView, dayLayout.childCount - 1)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -192,6 +249,7 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
         registerReceiver(notificationReceiver, IntentFilter(Variables.MAIN_ACTIVITY_INTENT))
         setContentView(R.layout.activity_main)
         addButton = findViewById(R.id.addButton)
+        settingsButton = findViewById(R.id.settings)
         taskViewModel = ViewModelProvider(this)[TaskViewModel::class.java]
         taskRecyclerView = findViewById(R.id.task_recycler_view)
         taskRecyclerView.layoutManager = LinearLayoutManager(this)
@@ -214,9 +272,13 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
 
         addButton.setOnClickListener {
             val createTaskIntent = Intent(this, CreateTaskActivity::class.java).apply {
-                action = Variables.ACTION_ADD
+                action = Variables.ACTION_CREATE
             }
             addTaskResultLauncher.launch(createTaskIntent)
+        }
+
+        settingsButton.setOnClickListener {
+            settingsPopup()
         }
 
         displayTasks()
@@ -237,11 +299,16 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
 
     private val modifyTaskResultLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
-            val data: Intent? = result.data
-            val task = data?.parcelable<Task>(Variables.TASK)
-            task?.let { taskViewModel.addTask(it, displayDay) }
+            val data: Intent = result.data ?: return@registerForActivityResult
+            val task = data.parcelable<Task>(Variables.TASK) ?: return@registerForActivityResult
+            val id = data.getLongExtra(Variables.ID, -1)
+            if (id != -1L) {
+                taskViewModel.deleteTask(task.copy(id=id), displayDay, true)
+            }
+            taskViewModel.addTask(task, displayDay)
         }
     }
+
 
     private fun displayTasks() {
         taskAdapter = TaskAdapter(this, taskViewModel, displayDay, this)
@@ -251,6 +318,14 @@ class MainActivity : ComponentActivity(), TaskModifyCallback {
     override fun onModifyTask(task: Task) {
         val createTaskIntent = Intent(this, CreateTaskActivity::class.java).apply {
             action = Variables.ACTION_MODIFY
+            putExtra(Variables.TASK, task)
+        }
+        modifyTaskResultLauncher.launch(createTaskIntent)
+    }
+
+    override fun onCopyTask(task: Task) {
+        val createTaskIntent = Intent(this, CreateTaskActivity::class.java).apply {
+            action = Variables.ACTION_ADD
             putExtra(Variables.TASK, task)
         }
         modifyTaskResultLauncher.launch(createTaskIntent)

@@ -275,10 +275,14 @@ class CreateTaskActivity : ComponentActivity() {
         setNumberPickerRange(taskPickerML, 0, 5)
         setNumberPickerRange(taskPickerMR, 0, 9)
 
-        if (intent.action == Variables.ACTION_MODIFY) {
+        if (intent.action != Variables.ACTION_CREATE) {
             templateTask = intent.parcelable(Variables.TASK)
 
-            createTaskButton.text = getString(R.string.modify_task)
+            if (intent.action == Variables.ACTION_MODIFY) {
+                createTaskButton.text = getString(R.string.modify_task)
+            } else {
+                createTaskButton.text = getString(R.string.add_task)
+            }
 
             titleEditText.setText(templateTask!!.text)
 
@@ -293,8 +297,19 @@ class CreateTaskActivity : ComponentActivity() {
 
             priorityBar.progress = templateTask!!.priority
 
+            if (templateTask!!.intervalDays > 0) {
+                checkBoxRepeat.isChecked = true
+                intervalDays = templateTask!!.intervalDays
+                if (intervalDays == 1){
+                    textViewRepeat.text = getString(R.string.every_day)
+                } else {
+                    textViewRepeat.text = getString(R.string.repeat_interval, intervalDays)
+                }
+            }
+
             if (templateTask!!.fixedTime) {
                 checkBoxHasFixedTime.isChecked = true
+                hasStartTime = true
                 createdTime = templateTask!!.createdTime
 
                 val formatterTime = DateTimeFormatter.ofPattern("dd/MM HH:mm")
@@ -338,26 +353,27 @@ class CreateTaskActivity : ComponentActivity() {
             if (templateTask != null) { stopRunningTask(task = templateTask) }
 
             val task = Task(
-                id = templateTask?.id ?: System.currentTimeMillis(),
+                id = System.currentTimeMillis(),
                 text = text,
-                isTemplate = templateTask?.isTemplate ?: (intervalDays != 0),
+                isTemplate = intervalDays != 0,
                 duration = duration.seconds,
                 priority = priority,
                 intervalDays = intervalDays,
                 fixedTime = fixedTime,
-                createdTime = templateTask?.createdTime ?: createdTime,
+                createdTime = createdTime,
                 estimatedStartTime = createdTime,
                 timeLeft = duration.seconds,
                 startTime = createdTime,
                 timeLeftOnStart = duration.seconds,
                 isRunning = false,
                 color = visibleColorCircleHolder.currentColor,
-                isDetailVisible = templateTask?.isDetailVisible ?: false,
+                isDetailVisible = false,
                 status = TaskStatus.REMAINING,
             )
 
             val returnIntent = Intent()
             returnIntent.putExtra(Variables.TASK, task)
+            returnIntent.putExtra(Variables.ID, if (intent.action == Variables.ACTION_MODIFY) templateTask?.id else null)
             setResult(Activity.RESULT_OK, returnIntent)
             finish()
         }
